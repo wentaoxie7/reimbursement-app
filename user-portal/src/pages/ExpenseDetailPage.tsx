@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { api, formatExpenseStatus, type Expense, type FieldDef } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { DynamicFieldForm } from "../components/DynamicFieldForm";
@@ -11,6 +11,8 @@ export function ExpenseDetailPage() {
   const [fields, setFields] = useState<FieldDef[]>([]);
   const [values, setValues] = useState<Record<string, unknown>>({});
   const [error, setError] = useState("");
+  const location = useLocation();
+  const returnTo = (location.state as { returnTo?: string } | null)?.returnTo ?? "/expenses";
 
   useEffect(() => {
     if (!id) return;
@@ -98,7 +100,7 @@ export function ExpenseDetailPage() {
         <pre>{JSON.stringify(expense.field_values, null, 2)}</pre>
       )}
       <p>
-        <Link to="/expenses">返回列表</Link>
+        <Link to={returnTo}>返回列表</Link>
       </p>
     </div>
   );

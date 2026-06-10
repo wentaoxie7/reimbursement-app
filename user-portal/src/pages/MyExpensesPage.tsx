@@ -78,7 +78,9 @@ export function MyExpensesPage() {
               <td>{String(e.field_values.amount ?? "-")}</td>
               <td>{String(e.field_values.category ?? "-")}</td>
               <td>
-                <Link to={`/expenses/${e.id}`}>详情</Link>{" "}
+                <Link to={`/expenses/${e.id}`} state={{ returnTo: "/expenses" }}>
+                  详情
+                </Link>
                 {canWithdraw(e) && (
                   <button type="button" className="btn btn-secondary" onClick={() => withdraw(e)}>
                     撤回

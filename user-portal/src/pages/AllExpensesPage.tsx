@@ -40,7 +40,9 @@ export function AllExpensesPage() {
               <td>{String(expense.field_values.amount ?? "-")}</td>
               <td>{String(expense.field_values.category ?? "-")}</td>
               <td>
-                <Link to={`/expenses/${expense.id}`}>详情</Link>
+                <Link to={`/expenses/${expense.id}`} state={{ returnTo: "/all-expenses" }}>
+                  详情
+                </Link>
               </td>
             </tr>
           ))}
