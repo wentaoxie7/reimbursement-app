@@ -38,7 +38,7 @@ export function LoginPage() {
         </button>
       </form>
       <p style={{ fontSize: "0.8rem", marginTop: "1rem", color: "#666" }}>
-        演示：employee@demo.com / employee123 · finance@demo.com / finance123 · manager@demo.com / manager123
+        演示：employee@demo.com / employee123 · finance@demo.com / finance123 · director@demo.com / director123
       </p>
     </div>
   );

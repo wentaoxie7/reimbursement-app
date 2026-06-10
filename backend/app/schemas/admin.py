@@ -52,6 +52,18 @@ class RoleResponse(ORMBase):
     name: str
 
 
+class PageAccessResponse(BaseModel):
+    key: str
+    label: str
+    portal: str
+    role_codes: list[str]
+    role_ids: list[str]
+
+
+class PageAccessUpdate(BaseModel):
+    role_ids: list[str]
+
+
 class UserRolesUpdate(BaseModel):
     role_ids: list[str]
 

@@ -2,7 +2,7 @@ from app.models.approval import ApprovalAction, ApprovalInstance, ApprovalSequen
 from app.models.config import ConfigAuditLog, ExpenseFieldDefinition, FieldSchemaVersion
 from app.models.expense import ArchiveRecord, Expense, ExpenseStatus, Receipt
 from app.models.organization import Organization
-from app.models.permission import Permission, Role, RolePermission, UserRoleAssignment
+from app.models.permission import Permission, Role, RolePageAccess, RolePermission, UserRoleAssignment
 from app.models.user import User
 
 __all__ = [
@@ -11,6 +11,7 @@ __all__ = [
     "Role",
     "Permission",
     "RolePermission",
+    "RolePageAccess",
     "UserRoleAssignment",
     "ExpenseFieldDefinition",
     "FieldSchemaVersion",

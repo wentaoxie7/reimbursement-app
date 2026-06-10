@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_permission
+from app.api.deps import require_any_page_access, require_page_access
 from app.db.session import get_db
 from app.models.permission import Role, UserRoleAssignment
 from app.models.user import User
@@ -14,23 +14,25 @@ router = APIRouter(prefix="/admin", tags=["admin-users"])
 
 @router.get("/users", response_model=list[UserResponse])
 def list_users(
-    user: User = Depends(require_permission("CONFIG_USERS")),
+    user: User = Depends(
+        require_any_page_access(["ADMIN_USERS", "ADMIN_APPROVAL", "ADMIN_PAGE_ACCESS"])
+    ),
     db: Session = Depends(get_db),
 ) -> list[UserResponse]:
     users = db.scalars(select(User).where(User.org_id == user.org_id)).all()
-    result = []
-    for u in users:
+    result: list[UserResponse] = []
+    for item in users:
         role_codes: list[str] = []
-        for a in u.role_assignments:
-            role = db.get(Role, a.role_id)
-            if role:
+        for assignment in item.role_assignments:
+            role = db.get(Role, assignment.role_id)
+            if role and role.code != "MANAGER":
                 role_codes.append(role.code)
         result.append(
             UserResponse(
-                id=u.id,
-                email=u.email,
-                full_name=u.full_name,
-                active=u.active,
+                id=item.id,
+                email=item.email,
+                full_name=item.full_name,
+                active=item.active,
                 role_codes=role_codes,
             )
         )
@@ -39,10 +41,10 @@ def list_users(
 
 @router.get("/roles", response_model=list[RoleResponse])
 def list_roles(
-    user: User = Depends(require_permission("CONFIG_USERS")),
+    user: User = Depends(require_page_access("ADMIN_USERS")),
     db: Session = Depends(get_db),
 ) -> list[RoleResponse]:
-    roles = db.scalars(select(Role).order_by(Role.code)).all()
+    roles = db.scalars(select(Role).where(Role.code != "MANAGER").order_by(Role.code)).all()
     return [RoleResponse.model_validate(role) for role in roles]
 
 
@@ -50,7 +52,7 @@ def list_roles(
 def update_user_roles(
     user_id: str,
     body: UserRolesUpdate,
-    admin: User = Depends(require_permission("CONFIG_USERS")),
+    admin: User = Depends(require_page_access("ADMIN_USERS")),
     db: Session = Depends(get_db),
 ) -> MessageResponse:
     target = db.get(User, user_id)

@@ -36,6 +36,14 @@ export type Role = {
   name: string;
 };
 
+export type PageAccessPage = {
+  key: string;
+  label: string;
+  portal: string;
+  role_codes: string[];
+  role_ids: string[];
+};
+
 export type ApprovalStep = {
   id: string;
   step_order: number;

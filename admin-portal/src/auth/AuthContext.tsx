@@ -9,7 +9,7 @@ import {
 } from "react";
 import { api } from "../api/client";
 
-type User = { id: string; email: string; full_name: string; permissions: string[] };
+type User = { id: string; email: string; full_name: string; permissions: string[]; page_keys: string[] };
 
 type AuthContextValue = {
   user: User | null;
@@ -17,6 +17,7 @@ type AuthContextValue = {
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   hasPermission: (code: string) => boolean;
+  hasPageAccess: (pageKey: string) => boolean;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -63,6 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       logout,
       hasPermission: (code: string) => user?.permissions.includes(code) ?? false,
+      hasPageAccess: (pageKey: string) => user?.page_keys.includes(pageKey) ?? false,
     }),
     [user, loading]
   );

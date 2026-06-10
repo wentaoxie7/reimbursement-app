@@ -16,6 +16,7 @@ class UserMeResponse(BaseModel):
     email: str
     full_name: str
     permissions: list[str]
+    page_keys: list[str]
 
 
 class ProfileUpdateRequest(BaseModel):

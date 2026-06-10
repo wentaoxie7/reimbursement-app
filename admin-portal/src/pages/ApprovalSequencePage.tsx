@@ -4,9 +4,9 @@ import { api, type ApprovalSequence, type Role } from "../api/client";
 export function ApprovalSequencePage() {
   const [sequences, setSequences] = useState<ApprovalSequence[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
-  const [name, setName] = useState("Finance then Manager");
+  const [name, setName] = useState("Finance then Director");
   const [firstRoleCode, setFirstRoleCode] = useState("FINANCE");
-  const [secondRoleCode, setSecondRoleCode] = useState("MANAGER");
+  const [secondRoleCode, setSecondRoleCode] = useState("DIRECTOR");
   const [msg, setMsg] = useState("");
 
   const load = async () => {

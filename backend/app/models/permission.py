@@ -40,3 +40,12 @@ class UserRoleAssignment(Base):
 
     user: Mapped["User"] = relationship(back_populates="role_assignments")  # noqa: F821
     role: Mapped["Role"] = relationship()
+
+
+class RolePageAccess(Base):
+    __tablename__ = "role_page_accesses"
+
+    role_id: Mapped[str] = mapped_column(String(36), ForeignKey("roles.id"), primary_key=True)
+    page_key: Mapped[str] = mapped_column(String(64), primary_key=True)
+
+    role: Mapped["Role"] = relationship()

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_permission
+from app.api.deps import require_page_access
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.admin import (
@@ -18,17 +18,17 @@ router = APIRouter(prefix="/admin", tags=["admin-fields"])
 
 @router.get("/fields", response_model=list[FieldDefinitionResponse])
 def list_fields(
-    user: User = Depends(require_permission("CONFIG_FIELDS")),
+    user: User = Depends(require_page_access("ADMIN_FIELDS")),
     db: Session = Depends(get_db),
 ) -> list[FieldDefinitionResponse]:
     fields = FieldSchemaService(db, user.org_id).list_fields()
-    return [FieldDefinitionResponse.model_validate(f) for f in fields]
+    return [FieldDefinitionResponse.model_validate(field) for field in fields]
 
 
 @router.post("/fields", response_model=FieldDefinitionResponse, status_code=status.HTTP_201_CREATED)
 def create_field(
     body: FieldDefinitionCreate,
-    user: User = Depends(require_permission("CONFIG_FIELDS")),
+    user: User = Depends(require_page_access("ADMIN_FIELDS")),
     db: Session = Depends(get_db),
 ) -> FieldDefinitionResponse:
     field = FieldSchemaService(db, user.org_id).create_field(body)
@@ -39,7 +39,7 @@ def create_field(
 def update_field(
     field_id: str,
     body: FieldDefinitionUpdate,
-    user: User = Depends(require_permission("CONFIG_FIELDS")),
+    user: User = Depends(require_page_access("ADMIN_FIELDS")),
     db: Session = Depends(get_db),
 ) -> FieldDefinitionResponse:
     try:
@@ -52,7 +52,7 @@ def update_field(
 @router.delete("/fields/{field_id}", response_model=MessageResponse)
 def delete_field(
     field_id: str,
-    user: User = Depends(require_permission("CONFIG_FIELDS")),
+    user: User = Depends(require_page_access("ADMIN_FIELDS")),
     db: Session = Depends(get_db),
 ) -> MessageResponse:
     try:
@@ -65,7 +65,7 @@ def delete_field(
 @router.patch("/fields/reorder", response_model=MessageResponse)
 def reorder_fields(
     body: FieldReorderRequest,
-    user: User = Depends(require_permission("CONFIG_FIELDS")),
+    user: User = Depends(require_page_access("ADMIN_FIELDS")),
     db: Session = Depends(get_db),
 ) -> MessageResponse:
     FieldSchemaService(db, user.org_id).reorder(body.ordered_ids)
@@ -74,7 +74,7 @@ def reorder_fields(
 
 @router.post("/fields/publish", response_model=MessageResponse)
 def publish_schema(
-    user: User = Depends(require_permission("CONFIG_FIELDS")),
+    user: User = Depends(require_page_access("ADMIN_FIELDS")),
     db: Session = Depends(get_db),
 ) -> MessageResponse:
     version = FieldSchemaService(db, user.org_id).publish(user.id)

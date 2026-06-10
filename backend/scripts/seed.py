@@ -15,9 +15,16 @@ from app.db.session import SessionLocal, engine
 from app.models.approval import ApprovalSequence, ApprovalStep, ApproverRule
 from app.models.config import ExpenseFieldDefinition, FieldSchemaVersion, FieldType
 from app.models.organization import Organization
-from app.models.permission import Permission, Role, RolePermission, UserRoleAssignment
+from app.models.permission import (
+    Permission,
+    Role,
+    RolePageAccess,
+    RolePermission,
+    UserRoleAssignment,
+)
 from app.models.user import User
 from app.services.field_schema import FieldSchemaService
+from app.services.page_access import PAGE_DEFINITIONS
 
 ORG_ID = "org-demo"
 
@@ -36,8 +43,8 @@ ROLES = {
     "EMPLOYEE": ["EXPENSE_CREATE", "EXPENSE_SUBMIT", "EXPENSE_VIEW_OWN"],
     "APPROVER": ["EXPENSE_CREATE", "EXPENSE_SUBMIT", "EXPENSE_VIEW_OWN", "APPROVAL_ACT"],
     "FINANCE": ["APPROVAL_ACT", "ARCHIVE_VIEW"],
-    "MANAGER": ["APPROVAL_ACT"],
-    "ADMIN": [p[0] for p in PERMISSIONS],
+    "DIRECTOR": ["APPROVAL_ACT"],
+    "ADMIN": [item[0] for item in PERMISSIONS],
 }
 
 DEMO_USERS = {
@@ -50,18 +57,33 @@ DEMO_USERS = {
         "password": "employee123",
         "full_name": "Employee User",
         "roles": ["EMPLOYEE"],
-        "manager_email": "manager@demo.com",
+        "manager_email": "director@demo.com",
     },
     "finance@demo.com": {
         "password": "finance123",
         "full_name": "Finance User",
         "roles": ["FINANCE", "APPROVER"],
     },
-    "manager@demo.com": {
-        "password": "manager123",
-        "full_name": "Manager User",
-        "roles": ["MANAGER"],
+    "director@demo.com": {
+        "password": "director123",
+        "full_name": "Director User",
+        "roles": ["DIRECTOR"],
     },
+}
+
+DEFAULT_PAGE_ACCESS = {
+    "EMPLOYEE": ["USER_HOME", "USER_MY_EXPENSES", "USER_NEW_EXPENSE", "USER_SETTINGS"],
+    "APPROVER": [
+        "USER_HOME",
+        "USER_MY_EXPENSES",
+        "USER_NEW_EXPENSE",
+        "USER_APPROVAL_TASKS",
+        "USER_ALL_EXPENSES",
+        "USER_SETTINGS",
+    ],
+    "FINANCE": ["USER_HOME", "USER_MY_EXPENSES", "USER_APPROVAL_TASKS", "USER_ALL_EXPENSES", "USER_SETTINGS"],
+    "DIRECTOR": ["USER_HOME", "USER_MY_EXPENSES", "USER_APPROVAL_TASKS", "USER_ALL_EXPENSES", "USER_SETTINGS"],
+    "ADMIN": [page["key"] for page in PAGE_DEFINITIONS],
 }
 
 DEFAULT_FIELDS = [
@@ -74,6 +96,71 @@ DEFAULT_FIELDS = [
 
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def ensure_assignment(table, key_data: dict, create_data: dict, db: Session) -> None:
+    if not db.get(table, key_data):
+        db.add(table(**create_data))
+
+
+def migrate_manager_to_director(db: Session) -> None:
+    manager_role = db.scalars(select(Role).where(Role.code == "MANAGER")).first()
+    director_role = db.scalars(select(Role).where(Role.code == "DIRECTOR")).first()
+
+    if manager_role and not director_role:
+        manager_role.code = "DIRECTOR"
+        manager_role.name = "Director"
+        director_role = manager_role
+    elif manager_role and director_role:
+        assignments = db.scalars(select(UserRoleAssignment).where(UserRoleAssignment.role_id == manager_role.id)).all()
+        for assignment in assignments:
+            ensure_assignment(
+                UserRoleAssignment,
+                {"user_id": assignment.user_id, "role_id": director_role.id},
+                {"user_id": assignment.user_id, "role_id": director_role.id},
+                db,
+            )
+            db.delete(assignment)
+
+        permissions = db.scalars(select(RolePermission).where(RolePermission.role_id == manager_role.id)).all()
+        for permission in permissions:
+            ensure_assignment(
+                RolePermission,
+                {"role_id": director_role.id, "permission_id": permission.permission_id},
+                {"role_id": director_role.id, "permission_id": permission.permission_id},
+                db,
+            )
+            db.delete(permission)
+
+        page_accesses = db.scalars(select(RolePageAccess).where(RolePageAccess.role_id == manager_role.id)).all()
+        for page_access in page_accesses:
+            ensure_assignment(
+                RolePageAccess,
+                {"role_id": director_role.id, "page_key": page_access.page_key},
+                {"role_id": director_role.id, "page_key": page_access.page_key},
+                db,
+            )
+            db.delete(page_access)
+        db.delete(manager_role)
+
+    db.flush()
+
+    for step in db.scalars(select(ApprovalStep).where(ApprovalStep.role_code == "MANAGER")).all():
+        step.role_code = "DIRECTOR"
+
+    manager_user = db.scalars(select(User).where(User.email == "manager@demo.com")).first()
+    director_user = db.scalars(select(User).where(User.email == "director@demo.com")).first()
+    if manager_user and not director_user:
+        manager_user.email = "director@demo.com"
+        manager_user.full_name = "Director User"
+        manager_user.hashed_password = hash_password("director123")
+        director_user = manager_user
+    elif manager_user and director_user and manager_user.id != director_user.id:
+        for employee in db.scalars(select(User).where(User.manager_id == manager_user.id)).all():
+            employee.manager_id = director_user.id
+        manager_user.email = f"legacy-manager-{manager_user.id[:6]}@demo.com"
+        manager_user.full_name = "Legacy Manager User"
+        manager_user.active = False
 
 
 def get_or_create_permission(db: Session, code: str, description: str) -> Permission:
@@ -99,15 +186,21 @@ def get_or_create_role(db: Session, code: str) -> Role:
 
 
 def ensure_role_permission(db: Session, role_id: str, permission_id: str) -> None:
-    exists = db.get(RolePermission, {"role_id": role_id, "permission_id": permission_id})
-    if not exists:
-        db.add(RolePermission(role_id=role_id, permission_id=permission_id))
+    ensure_assignment(
+        RolePermission,
+        {"role_id": role_id, "permission_id": permission_id},
+        {"role_id": role_id, "permission_id": permission_id},
+        db,
+    )
 
 
 def ensure_role_assignment(db: Session, user_id: str, role_id: str) -> None:
-    exists = db.get(UserRoleAssignment, {"user_id": user_id, "role_id": role_id})
-    if not exists:
-        db.add(UserRoleAssignment(user_id=user_id, role_id=role_id))
+    ensure_assignment(
+        UserRoleAssignment,
+        {"user_id": user_id, "role_id": role_id},
+        {"user_id": user_id, "role_id": role_id},
+        db,
+    )
 
 
 def get_or_create_user(db: Session, email: str, password: str, full_name: str) -> User:
@@ -155,7 +248,7 @@ def ensure_fields(db: Session) -> None:
 
 
 def ensure_default_sequence(db: Session) -> None:
-    sequence_name = "Finance then Manager"
+    sequence_name = "Finance then Director"
     sequence = db.scalars(
         select(ApprovalSequence).where(
             ApprovalSequence.org_id == ORG_ID,
@@ -174,7 +267,7 @@ def ensure_default_sequence(db: Session) -> None:
         db.flush()
 
     db.query(ApprovalStep).filter(ApprovalStep.sequence_id == sequence.id).delete()
-    for order, role_code in [(1, "FINANCE"), (2, "MANAGER")]:
+    for order, role_code in [(1, "FINANCE"), (2, "DIRECTOR")]:
         db.add(
             ApprovalStep(
                 id=str(uuid.uuid4()),
@@ -194,6 +287,16 @@ def ensure_default_sequence(db: Session) -> None:
         other.is_default = other.id == sequence.id
 
 
+def ensure_page_access_defaults(db: Session, role_map: dict[str, Role]) -> None:
+    for page in PAGE_DEFINITIONS:
+        page_key = page["key"]
+        if db.scalars(select(RolePageAccess).where(RolePageAccess.page_key == page_key)).first():
+            continue
+        for role_code, page_keys in DEFAULT_PAGE_ACCESS.items():
+            if page_key in page_keys:
+                db.add(RolePageAccess(role_id=role_map[role_code].id, page_key=page_key))
+
+
 def seed() -> None:
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
@@ -204,7 +307,9 @@ def seed() -> None:
         else:
             organization.name = "Demo Corp"
 
-        perm_map = {code: get_or_create_permission(db, code, desc) for code, desc in PERMISSIONS}
+        migrate_manager_to_director(db)
+
+        perm_map = {code: get_or_create_permission(db, code, description) for code, description in PERMISSIONS}
         role_map = {code: get_or_create_role(db, code) for code in ROLES}
         for role_code, permission_codes in ROLES.items():
             for permission_code in permission_codes:
@@ -229,13 +334,14 @@ def seed() -> None:
             FieldSchemaService(db, ORG_ID).publish(user_map["admin@demo.com"].id)
 
         ensure_default_sequence(db)
+        ensure_page_access_defaults(db, role_map)
         db.commit()
         print("Seed complete.")
         print("  admin@demo.com / admin123")
         print("  employee@demo.com / employee123")
         print("  finance@demo.com / finance123")
-        print("  manager@demo.com / manager123")
-        print("  default approval: FINANCE -> MANAGER")
+        print("  director@demo.com / director123")
+        print("  default approval: FINANCE -> DIRECTOR")
     finally:
         db.close()
 

@@ -16,8 +16,14 @@ function Protected({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function PageGuard({ pageKey, children }: { pageKey: string; children: React.ReactNode }) {
+  const { hasPageAccess } = useAuth();
+  if (!hasPageAccess(pageKey)) return <p>无页面权限</p>;
+  return <>{children}</>;
+}
+
 export default function App() {
-  const { user, logout, hasPermission } = useAuth();
+  const { user, logout, hasPermission, hasPageAccess } = useAuth();
 
   return (
     <Routes>
@@ -29,27 +35,29 @@ export default function App() {
             <div className="layout">
               <nav className="nav">
                 <strong>报销 · 用户端</strong>
-                <NavLink to="/" end>
-                  首页
-                </NavLink>
-                {hasPermission("APPROVAL_ACT") && <NavLink to="/all-expenses">全部报销</NavLink>}
-                <NavLink to="/expenses">我的报销</NavLink>
-                {hasPermission("EXPENSE_CREATE") && <NavLink to="/expenses/new">新建</NavLink>}
-                {hasPermission("APPROVAL_ACT") && <NavLink to="/approval-tasks">审核任务</NavLink>}
-                <NavLink to="/settings">设置</NavLink>
+                {hasPageAccess("USER_HOME") && (
+                  <NavLink to="/" end>
+                    首页
+                  </NavLink>
+                )}
+                {hasPageAccess("USER_ALL_EXPENSES") && <NavLink to="/all-expenses">全部报销</NavLink>}
+                {hasPageAccess("USER_MY_EXPENSES") && <NavLink to="/expenses">我的报销</NavLink>}
+                {hasPageAccess("USER_NEW_EXPENSE") && hasPermission("EXPENSE_CREATE") && <NavLink to="/expenses/new">新建</NavLink>}
+                {hasPageAccess("USER_APPROVAL_TASKS") && <NavLink to="/approval-tasks">审核任务</NavLink>}
+                {hasPageAccess("USER_SETTINGS") && <NavLink to="/settings">设置</NavLink>}
                 <span style={{ marginLeft: "auto" }}>欢迎，{user?.full_name || user?.email}</span>
                 <button type="button" className="btn btn-secondary" onClick={logout}>
                   退出
                 </button>
               </nav>
               <Routes>
-                <Route path="/" element={<HomePage />} />
-                <Route path="/all-expenses" element={<AllExpensesPage />} />
-                <Route path="/expenses" element={<MyExpensesPage />} />
-                <Route path="/expenses/new" element={<ExpenseFormPage />} />
+                <Route path="/" element={<PageGuard pageKey="USER_HOME"><HomePage /></PageGuard>} />
+                <Route path="/all-expenses" element={<PageGuard pageKey="USER_ALL_EXPENSES"><AllExpensesPage /></PageGuard>} />
+                <Route path="/expenses" element={<PageGuard pageKey="USER_MY_EXPENSES"><MyExpensesPage /></PageGuard>} />
+                <Route path="/expenses/new" element={<PageGuard pageKey="USER_NEW_EXPENSE"><ExpenseFormPage /></PageGuard>} />
                 <Route path="/expenses/:id" element={<ExpenseDetailPage />} />
-                <Route path="/approval-tasks" element={<ApprovalTasksPage />} />
-                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/approval-tasks" element={<PageGuard pageKey="USER_APPROVAL_TASKS"><ApprovalTasksPage /></PageGuard>} />
+                <Route path="/settings" element={<PageGuard pageKey="USER_SETTINGS"><SettingsPage /></PageGuard>} />
               </Routes>
             </div>
           </Protected>

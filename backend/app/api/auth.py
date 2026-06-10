@@ -13,6 +13,7 @@ from app.schemas.auth import (
     TokenResponse,
     UserMeResponse,
 )
+from app.services.page_access import PageAccessService
 from app.services.permission import PermissionService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -35,6 +36,7 @@ def me(user: User = Depends(get_current_user), db: Session = Depends(get_db)) ->
         email=user.email,
         full_name=user.full_name,
         permissions=PermissionService(db).list_for_user(user.id),
+        page_keys=PageAccessService(db).list_for_user(user.id),
     )
 
 
@@ -55,6 +57,7 @@ def update_me(
         email=user.email,
         full_name=user.full_name,
         permissions=PermissionService(db).list_for_user(user.id),
+        page_keys=PageAccessService(db).list_for_user(user.id),
     )
 
 

@@ -118,7 +118,7 @@ npm run dev
 |------|------|------|
 | employee@demo.com | employee123 | 用户端 — 填报报销 |
 | finance@demo.com | finance123 | 用户端 — 第 1 步财务审核 |
-| manager@demo.com | manager123 | 用户端 — 第 2 步经理审核 |
+| director@demo.com | director123 | 用户端 — 第 2 步总监审核 |
 | admin@demo.com | admin123 | 管理端 — 字段/权限/审核链 |
 
 ## 主要 API

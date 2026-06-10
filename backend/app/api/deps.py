@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.core.security import decode_access_token
 from app.db.session import get_db
 from app.models.user import User
+from app.services.page_access import PageAccessService
 from app.services.permission import PermissionService
 
 security = HTTPBearer(auto_error=False)
@@ -32,6 +33,31 @@ def require_permission(permission_code: str):
     ) -> User:
         if not PermissionService(db).has(user.id, permission_code):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
+        return user
+
+    return checker
+
+
+def require_page_access(page_key: str):
+    def checker(
+        user: User = Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ) -> User:
+        if not PageAccessService(db).has(user.id, page_key):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Page access denied")
+        return user
+
+    return checker
+
+
+def require_any_page_access(page_keys: list[str]):
+    def checker(
+        user: User = Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ) -> User:
+        service = PageAccessService(db)
+        if not any(service.has(user.id, page_key) for page_key in page_keys):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Page access denied")
         return user
 
     return checker
