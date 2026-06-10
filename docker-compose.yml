@@ -1,0 +1,81 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: reimbursement-db
+    environment:
+      POSTGRES_USER: reimbursement
+      POSTGRES_PASSWORD: reimbursement
+      POSTGRES_DB: reimbursement
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reimbursement -d reimbursement"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  seed:
+    build:
+      context: ./backend
+    container_name: reimbursement-seed
+    environment:
+      DATABASE_URL: postgresql://reimbursement:reimbursement@postgres:5432/reimbursement
+      SECRET_KEY: dev-secret-key
+      ACCESS_TOKEN_EXPIRE_MINUTES: "480"
+      CORS_ORIGINS: http://localhost:5173,http://localhost:5174
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["python", "scripts/seed.py"]
+    restart: "no"
+
+  backend:
+    build:
+      context: ./backend
+    container_name: reimbursement-api
+    environment:
+      DATABASE_URL: postgresql://reimbursement:reimbursement@postgres:5432/reimbursement
+      SECRET_KEY: dev-secret-key
+      ACCESS_TOKEN_EXPIRE_MINUTES: "480"
+      CORS_ORIGINS: http://localhost:5173,http://localhost:5174
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      seed:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=2)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  user-portal:
+    build:
+      context: ./user-portal
+      args:
+        VITE_API_BASE_URL: /api
+    container_name: reimbursement-user-portal
+    ports:
+      - "5173:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  admin-portal:
+    build:
+      context: ./admin-portal
+      args:
+        VITE_API_BASE_URL: /api
+    container_name: reimbursement-admin-portal
+    ports:
+      - "5174:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  pgdata:
