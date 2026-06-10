@@ -6,6 +6,7 @@ export function FieldConfigPage() {
   const [key, setKey] = useState("");
   const [label, setLabel] = useState("");
   const [fieldType, setFieldType] = useState("TEXT");
+  const [required, setRequired] = useState(false);
   const [msg, setMsg] = useState("");
 
   const load = () => api.get<FieldDefinition[]>("/admin/fields").then(({ data }) => setFields(data));
@@ -20,11 +21,12 @@ export function FieldConfigPage() {
       field_key: key,
       label,
       field_type: fieldType,
-      required: false,
+      required,
       display_order: fields.length,
     });
     setKey("");
     setLabel("");
+    setRequired(false);
     load();
   };
 
@@ -62,6 +64,16 @@ export function FieldConfigPage() {
               <option value="DATE">DATE</option>
               <option value="SELECT">SELECT</option>
             </select>
+          </div>
+          <div className="form-group">
+            <label>
+              <input
+                type="checkbox"
+                checked={required}
+                onChange={(e) => setRequired(e.target.checked)}
+              />
+              必填
+            </label>
           </div>
           <button type="submit" className="btn btn-primary">
             添加字段
