@@ -18,11 +18,23 @@ class FieldType(str, enum.Enum):
     CURRENCY = "CURRENCY"
 
 
+class ExpenseType(Base):
+    __tablename__ = "expense_types"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    org_id: Mapped[str] = mapped_column(String(36), ForeignKey("organizations.id"), nullable=False)
+    code: Mapped[str] = mapped_column(String(64), nullable=False)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    display_order: Mapped[int] = mapped_column(Integer, default=0)
+
+
 class ExpenseFieldDefinition(Base):
     __tablename__ = "expense_field_definitions"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     org_id: Mapped[str] = mapped_column(String(36), ForeignKey("organizations.id"), nullable=False)
+    expense_type_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("expense_types.id"), nullable=True)
     field_key: Mapped[str] = mapped_column(String(64), nullable=False)
     label: Mapped[str] = mapped_column(String(128), nullable=False)
     field_type: Mapped[FieldType] = mapped_column(SAEnum(FieldType), nullable=False)

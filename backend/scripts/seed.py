@@ -5,15 +5,17 @@ import uuid
 from pathlib import Path
 
 import bcrypt
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from app.db.bootstrap import ensure_database_schema
 from app.db.base import Base
 from app.db.session import SessionLocal, engine
 from app.models.approval import ApprovalSequence, ApprovalStep, ApproverRule
-from app.models.config import ExpenseFieldDefinition, FieldSchemaVersion, FieldType
+from app.models.config import ExpenseFieldDefinition, ExpenseType, FieldSchemaVersion, FieldType
+from app.models.expense import Expense
 from app.models.organization import Organization
 from app.models.permission import (
     Permission,
@@ -91,6 +93,10 @@ DEFAULT_FIELDS = [
     ("expense_date", "Date", FieldType.DATE, True, 1, None),
     ("category", "Category", FieldType.SELECT, True, 2, {"choices": ["Travel", "Meals", "Office"]}),
     ("description", "Description", FieldType.TEXT, False, 3, None),
+]
+
+DEFAULT_EXPENSE_TYPES = [
+    ("GENERAL", "General Expense", True, 0),
 ]
 
 
@@ -222,18 +228,49 @@ def get_or_create_user(db: Session, email: str, password: str, full_name: str) -
     return user
 
 
-def ensure_fields(db: Session) -> None:
+def ensure_expense_types(db: Session) -> dict[str, ExpenseType]:
+    expense_type_map: dict[str, ExpenseType] = {}
+    for code, name, active, display_order in DEFAULT_EXPENSE_TYPES:
+        expense_type = db.scalars(
+            select(ExpenseType).where(
+                ExpenseType.org_id == ORG_ID,
+                ExpenseType.code == code,
+            )
+        ).first()
+        if not expense_type:
+            expense_type = ExpenseType(
+                id=str(uuid.uuid4()),
+                org_id=ORG_ID,
+                code=code,
+                name=name,
+            )
+            db.add(expense_type)
+            db.flush()
+        expense_type.name = name
+        expense_type.active = active
+        expense_type.display_order = display_order
+        expense_type_map[code] = expense_type
+    return expense_type_map
+
+
+def ensure_fields(db: Session, expense_type_map: dict[str, ExpenseType]) -> None:
+    default_type = expense_type_map["GENERAL"]
     for key, label, field_type, required, order, options in DEFAULT_FIELDS:
         field = db.scalars(
             select(ExpenseFieldDefinition).where(
                 ExpenseFieldDefinition.org_id == ORG_ID,
                 ExpenseFieldDefinition.field_key == key,
+                or_(
+                    ExpenseFieldDefinition.expense_type_id == default_type.id,
+                    ExpenseFieldDefinition.expense_type_id.is_(None),
+                ),
             )
         ).first()
         if not field:
             field = ExpenseFieldDefinition(
                 id=str(uuid.uuid4()),
                 org_id=ORG_ID,
+                expense_type_id=default_type.id,
                 field_key=key,
                 label=label,
                 field_type=field_type,
@@ -245,6 +282,21 @@ def ensure_fields(db: Session) -> None:
         field.display_order = order
         field.enabled = True
         field.options = options
+
+    for field in db.scalars(
+        select(ExpenseFieldDefinition).where(
+            ExpenseFieldDefinition.org_id == ORG_ID,
+            ExpenseFieldDefinition.expense_type_id.is_(None),
+        )
+    ).all():
+        field.expense_type_id = default_type.id
+
+    for expense in db.scalars(
+        select(Expense)
+        .join(User, User.id == Expense.owner_id)
+        .where(User.org_id == ORG_ID, Expense.expense_type_id.is_(None))
+    ).all():
+        expense.expense_type_id = default_type.id
 
 
 def ensure_default_sequence(db: Session) -> None:
@@ -298,6 +350,7 @@ def ensure_page_access_defaults(db: Session, role_map: dict[str, Role]) -> None:
 
 
 def seed() -> None:
+    ensure_database_schema()
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
@@ -327,7 +380,8 @@ def seed() -> None:
             for role_code in config["roles"]:
                 ensure_role_assignment(db, user.id, role_map[role_code].id)
 
-        ensure_fields(db)
+        expense_type_map = ensure_expense_types(db)
+        ensure_fields(db, expense_type_map)
         db.flush()
 
         if not db.scalars(select(FieldSchemaVersion).where(FieldSchemaVersion.org_id == ORG_ID)).first():

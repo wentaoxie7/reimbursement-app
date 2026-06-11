@@ -17,12 +17,13 @@ router = APIRouter(prefix="/user", tags=["user-expenses"])
 
 @router.get("/field-schema", response_model=FieldSchemaResponse)
 def get_field_schema(
+    expense_type_id: str | None = Query(None),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> FieldSchemaResponse:
-    schema = FieldSchemaService(db, user.org_id).get_published_schema()
+    schema = FieldSchemaService(db, user.org_id).get_published_schema(expense_type_id)
     if not schema:
-        return FieldSchemaResponse(version_id=None, version=None, fields=[])
+        return FieldSchemaResponse(version_id=None, version=None, expense_types=[], selected_expense_type_id=None, fields=[])
     return FieldSchemaResponse(**schema)
 
 
@@ -52,7 +53,7 @@ def create_expense(
     user: User = Depends(require_permission("EXPENSE_CREATE")),
     db: Session = Depends(get_db),
 ) -> ExpenseResponse:
-    expense = ExpenseService(db, user.org_id).create(user.id, body.field_values)
+    expense = ExpenseService(db, user.org_id).create(user.id, body.expense_type_id, body.field_values)
     return build_expense_response(db, expense)
 
 
@@ -80,7 +81,7 @@ def update_expense(
     db: Session = Depends(get_db),
 ) -> ExpenseResponse:
     try:
-        expense = ExpenseService(db, user.org_id).update(expense_id, user.id, body.field_values)
+        expense = ExpenseService(db, user.org_id).update(expense_id, user.id, body.expense_type_id, body.field_values)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     return build_expense_response(db, expense)

@@ -103,3 +103,9 @@ td {
   flex-wrap: wrap;
   align-items: flex-end;
 }
+
+.tab-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}

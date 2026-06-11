@@ -7,17 +7,27 @@ from app.schemas.common import ORMBase
 
 
 class ExpenseCreate(BaseModel):
+    expense_type_id: str | None = None
     field_values: dict
 
 
 class ExpenseUpdate(BaseModel):
+    expense_type_id: str | None = None
     field_values: dict
+
+
+class ExpenseTypeOptionResponse(BaseModel):
+    id: str
+    code: str
+    name: str
 
 
 class ExpenseResponse(ORMBase):
     id: str
     owner_id: str
     owner_name: str | None = None
+    expense_type_id: str | None = None
+    expense_type_name: str | None = None
     status: ExpenseStatus
     field_values: dict
     schema_version_id: str | None
@@ -34,4 +44,6 @@ class ExpenseResponse(ORMBase):
 class FieldSchemaResponse(BaseModel):
     version_id: str | None
     version: int | None
+    expense_types: list[ExpenseTypeOptionResponse] = []
+    selected_expense_type_id: str | None = None
     fields: list[dict]

@@ -21,10 +21,26 @@ export type FieldDef = {
   options?: { choices?: string[] };
 };
 
+export type ExpenseTypeOption = {
+  id: string;
+  code: string;
+  name: string;
+};
+
+export type FieldSchema = {
+  version_id: string | null;
+  version: number | null;
+  expense_types: ExpenseTypeOption[];
+  selected_expense_type_id: string | null;
+  fields: FieldDef[];
+};
+
 export type Expense = {
   id: string;
   owner_id: string;
   owner_name?: string | null;
+  expense_type_id?: string | null;
+  expense_type_name?: string | null;
   status: string;
   field_values: Record<string, unknown>;
   current_approval_role_code?: string | null;

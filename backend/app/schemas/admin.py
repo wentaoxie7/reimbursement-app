@@ -6,6 +6,7 @@ from app.schemas.common import ORMBase
 
 
 class FieldDefinitionCreate(BaseModel):
+    expense_type_id: str
     field_key: str
     label: str
     field_type: FieldType
@@ -26,6 +27,7 @@ class FieldDefinitionUpdate(BaseModel):
 
 class FieldDefinitionResponse(ORMBase):
     id: str
+    expense_type_id: str | None
     field_key: str
     label: str
     field_type: FieldType
@@ -35,7 +37,30 @@ class FieldDefinitionResponse(ORMBase):
 
 
 class FieldReorderRequest(BaseModel):
+    expense_type_id: str | None = None
     ordered_ids: list[str]
+
+
+class ExpenseTypeCreate(BaseModel):
+    code: str
+    name: str
+    display_order: int = 0
+    active: bool = True
+
+
+class ExpenseTypeUpdate(BaseModel):
+    code: str | None = None
+    name: str | None = None
+    display_order: int | None = None
+    active: bool | None = None
+
+
+class ExpenseTypeResponse(ORMBase):
+    id: str
+    code: str
+    name: str
+    active: bool
+    display_order: int
 
 
 class UserResponse(ORMBase):

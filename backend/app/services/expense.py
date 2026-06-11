@@ -17,10 +17,24 @@ class ExpenseService:
         self.db = db
         self.org_id = org_id
 
-    def create(self, owner_id: str, field_values: dict) -> Expense:
+    def _resolve_expense_type_id(self, expense_type_id: str | None) -> str:
+        service = FieldSchemaService(self.db, self.org_id)
+        if expense_type_id:
+            expense_type = service.get_expense_type(expense_type_id)
+            if not expense_type:
+                raise ValueError("Expense type not found")
+            return expense_type.id
+
+        default_type = service.get_default_expense_type()
+        if not default_type:
+            raise ValueError("No expense type configured")
+        return default_type.id
+
+    def create(self, owner_id: str, expense_type_id: str | None, field_values: dict) -> Expense:
         expense = Expense(
             id=str(uuid.uuid4()),
             owner_id=owner_id,
+            expense_type_id=self._resolve_expense_type_id(expense_type_id),
             field_values=field_values,
             status=ExpenseStatus.DRAFT,
         )
@@ -29,12 +43,13 @@ class ExpenseService:
         self.db.refresh(expense)
         return expense
 
-    def update(self, expense_id: str, owner_id: str, field_values: dict) -> Expense:
+    def update(self, expense_id: str, owner_id: str, expense_type_id: str | None, field_values: dict) -> Expense:
         expense = self.db.get(Expense, expense_id)
         if not expense or expense.owner_id != owner_id:
             raise ValueError("Expense not found")
         if expense.status not in (ExpenseStatus.DRAFT, ExpenseStatus.REJECTED):
             raise ValueError("Expense not editable")
+        expense.expense_type_id = self._resolve_expense_type_id(expense_type_id)
         expense.field_values = field_values
         self.db.commit()
         self.db.refresh(expense)
@@ -60,8 +75,13 @@ class ExpenseService:
         expense = self.db.get(Expense, expense_id)
         if not expense or expense.owner_id != owner_id:
             raise ValueError("Expense not found")
-        schema = FieldSchemaService(self.db, self.org_id).get_published_schema()
-        if not schema:
+        expense.expense_type_id = self._resolve_expense_type_id(expense.expense_type_id)
+        schema = FieldSchemaService(self.db, self.org_id).get_published_schema(expense.expense_type_id)
+        if (
+            not schema
+            or not schema["version_id"]
+            or schema["selected_expense_type_id"] != expense.expense_type_id
+        ):
             raise ValueError("No published field schema")
         expense.schema_version_id = schema["version_id"]
         expense.status = ExpenseStatus.SUBMITTED
@@ -81,6 +101,15 @@ class ExpenseService:
             raise ValueError("Expense not found")
         if expense.status != ExpenseStatus.REJECTED:
             raise ValueError("Only rejected expenses can be resubmitted")
+        expense.expense_type_id = self._resolve_expense_type_id(expense.expense_type_id)
+        schema = FieldSchemaService(self.db, self.org_id).get_published_schema(expense.expense_type_id)
+        if (
+            not schema
+            or not schema["version_id"]
+            or schema["selected_expense_type_id"] != expense.expense_type_id
+        ):
+            raise ValueError("No published field schema")
+        expense.schema_version_id = schema["version_id"]
         expense.status = ExpenseStatus.IN_APPROVAL
         expense.submitted_at = datetime.now(timezone.utc)
         if expense.approval_instance:

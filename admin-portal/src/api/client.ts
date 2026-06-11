@@ -14,12 +14,21 @@ api.interceptors.request.use((config) => {
 
 export type FieldDefinition = {
   id: string;
+  expense_type_id?: string | null;
   field_key: string;
   label: string;
   field_type: string;
   required: boolean;
   display_order: number;
   enabled: boolean;
+};
+
+export type ExpenseType = {
+  id: string;
+  code: string;
+  name: string;
+  active: boolean;
+  display_order: number;
 };
 
 export type UserRow = {

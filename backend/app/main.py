@@ -5,6 +5,7 @@ from app.api import auth
 from app.api.admin import approval_config, fields, page_access, users
 from app.api.user import approval, expenses
 from app.core.config import settings
+from app.db.bootstrap import ensure_database_schema
 
 app = FastAPI(
     title="Reimbursement API",
@@ -27,6 +28,11 @@ app.include_router(fields.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
 app.include_router(approval_config.router, prefix="/api")
 app.include_router(page_access.router, prefix="/api")
+
+
+@app.on_event("startup")
+def startup() -> None:
+    ensure_database_schema()
 
 
 @app.get("/api/health")

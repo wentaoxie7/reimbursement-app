@@ -2,6 +2,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.approval import ApprovalAction, ApprovalInstanceStatus, ApprovalStep
+from app.models.config import ExpenseType
 from app.models.expense import Expense
 from app.models.user import User
 from app.schemas.expense import ExpenseResponse
@@ -12,6 +13,7 @@ def build_expense_response(db: Session, expense: Expense) -> ExpenseResponse:
     response = ExpenseResponse.model_validate(expense)
     instance = expense.approval_instance
     owner = db.get(User, expense.owner_id)
+    expense_type = db.get(ExpenseType, expense.expense_type_id) if expense.expense_type_id else None
     last_action = db.scalars(
         select(ApprovalAction)
         .where(ApprovalAction.instance_id == instance.id)
@@ -22,6 +24,7 @@ def build_expense_response(db: Session, expense: Expense) -> ExpenseResponse:
 
     update: dict[str, object | None | list[str]] = {
         "owner_name": owner.full_name if owner else None,
+        "expense_type_name": expense_type.name if expense_type else None,
         "last_action_type": last_action.action.value if last_action else None,
         "last_action_comment": last_action.comment if last_action else None,
         "last_action_actor_name": last_actor.full_name if last_actor else None,
