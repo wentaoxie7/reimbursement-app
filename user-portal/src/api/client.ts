@@ -29,6 +29,12 @@ export type ExpenseTypeOption = {
   name: string;
 };
 
+export type Receipt = {
+  id: string;
+  file_url: string;
+  mime_type?: string | null;
+};
+
 export type FieldSchema = {
   version_id: string | null;
   version: number | null;
@@ -51,6 +57,7 @@ export type Expense = {
   last_action_type?: string | null;
   last_action_comment?: string | null;
   last_action_actor_name?: string | null;
+  receipts?: Receipt[];
   submitted_at: string | null;
   created_at: string;
 };

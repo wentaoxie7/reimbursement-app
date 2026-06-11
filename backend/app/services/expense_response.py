@@ -28,6 +28,14 @@ def build_expense_response(db: Session, expense: Expense) -> ExpenseResponse:
         "last_action_type": last_action.action.value if last_action else None,
         "last_action_comment": last_action.comment if last_action else None,
         "last_action_actor_name": last_actor.full_name if last_actor else None,
+        "receipts": [
+            {
+                "id": receipt.id,
+                "file_url": receipt.file_url,
+                "mime_type": receipt.mime_type,
+            }
+            for receipt in expense.receipts
+        ],
     }
 
     if instance and instance.status == ApprovalInstanceStatus.STEP_ACTIVE:

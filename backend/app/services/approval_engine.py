@@ -71,6 +71,20 @@ class ApprovalEngine:
             return list(self.db.scalars(stmt).all())
         return []
 
+    def is_current_approver(self, user_id: str, expense: Expense) -> bool:
+        instance = expense.approval_instance
+        if not instance or instance.status != ApprovalInstanceStatus.STEP_ACTIVE:
+            return False
+        step = self.db.scalars(
+            select(ApprovalStep).where(
+                ApprovalStep.sequence_id == instance.sequence_id,
+                ApprovalStep.step_order == instance.current_step_order,
+            )
+        ).first()
+        if not step:
+            return False
+        return user_id in self.resolve_approver_ids(step, expense)
+
     def approve(self, instance: ApprovalInstance, actor_id: str, comment: str | None = None) -> ApprovalInstance:
         action = ApprovalAction(
             id=str(uuid.uuid4()),

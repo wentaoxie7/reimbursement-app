@@ -15,12 +15,29 @@ export function FieldConfigPage() {
   const [key, setKey] = useState("");
   const [label, setLabel] = useState("");
   const [fieldType, setFieldType] = useState("TEXT");
+  const [selectChoices, setSelectChoices] = useState("");
   const [required, setRequired] = useState(false);
   const [showInLists, setShowInLists] = useState(false);
   const [msg, setMsg] = useState("");
 
   const sortExpenseTypes = (items: ExpenseType[]) =>
   [...items].sort((a, b) => a.display_order - b.display_order || a.name.localeCompare(b.name));
+
+  const buildSelectOptions = () => {
+    const choices = selectChoices
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+    return choices.length > 0 ? { choices } : null;
+  };
+
+  const buildInlineSelectOptions = (raw: string) => {
+    const choices = raw
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+    return choices.length > 0 ? { choices } : null;
+  };
 
   const loadExpenseTypes = async () => {
     const { data } = await api.get<ExpenseType[]>("/admin/expense-types");
@@ -107,6 +124,10 @@ export function FieldConfigPage() {
       setMsg("请先创建并选择一个 Expense 种类");
       return;
     }
+    if (fieldType === "SELECT" && !buildSelectOptions()) {
+      setMsg("SELECT 字段请至少填写一个选项");
+      return;
+    }
     await api.post("/admin/fields", {
       expense_type_id: fieldScope === "typed" ? selectedTypeId : null,
       is_global: fieldScope === "global",
@@ -116,9 +137,11 @@ export function FieldConfigPage() {
       field_type: fieldType,
       required,
       display_order: fields.length,
+      options: fieldType === "SELECT" ? buildSelectOptions() : null,
     });
     setKey("");
     setLabel("");
+    setSelectChoices("");
     setRequired(false);
     setShowInLists(false);
     setMsg("字段已添加，发布 Schema 后用户端生效。");
@@ -135,7 +158,7 @@ export function FieldConfigPage() {
     patch: Partial<
       Pick<
         FieldDefinition,
-        "display_order" | "field_key" | "label" | "field_type" | "required" | "show_in_lists"
+        "display_order" | "field_key" | "label" | "field_type" | "required" | "show_in_lists" | "options"
       >
     >
   ) => {
@@ -320,6 +343,17 @@ export function FieldConfigPage() {
                       <option value="SELECT">SELECT</option>
                     </select>
                   </div>
+                  {fieldType === "SELECT" && (
+                    <div className="form-group">
+                      <label>SELECT 选项</label>
+                      <input
+                        value={selectChoices}
+                        onChange={(e) => setSelectChoices(e.target.value)}
+                        placeholder="例如：Travel, Meals, Office"
+                        required
+                      />
+                    </div>
+                  )}
                   <div className="form-group">
                     <label>
                       <input
@@ -365,6 +399,7 @@ export function FieldConfigPage() {
                   <th>Key</th>
                   <th>标签</th>
                   <th>类型</th>
+                  <th>选项</th>
                   <th>必填</th>
                   {fieldScope === "global" && <th>列表展示</th>}
                   <th>操作</th>
@@ -411,7 +446,12 @@ export function FieldConfigPage() {
                     <td>
                       <select
                         value={field.field_type}
-                        onChange={(e) => updateField(field, { field_type: e.target.value })}
+                        onChange={(e) =>
+                          updateField(field, {
+                            field_type: e.target.value,
+                            options: e.target.value === "SELECT" ? field.options ?? { choices: [] } : null,
+                          })
+                        }
                       >
                         <option value="TEXT">TEXT</option>
                         <option value="NUMBER">NUMBER</option>
@@ -419,6 +459,20 @@ export function FieldConfigPage() {
                         <option value="DATE">DATE</option>
                         <option value="SELECT">SELECT</option>
                       </select>
+                    </td>
+                    <td>
+                      {field.field_type === "SELECT" ? (
+                        <input
+                          defaultValue={(field.options?.choices ?? []).join(", ")}
+                          placeholder="例如：Travel, Meals, Office"
+                          onBlur={(e) => {
+                            const options = buildInlineSelectOptions(e.target.value);
+                            updateField(field, { options });
+                          }}
+                        />
+                      ) : (
+                        <span>-</span>
+                      )}
                     </td>
                     <td>
                       <input

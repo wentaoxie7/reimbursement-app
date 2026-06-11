@@ -15,6 +15,7 @@ export function ExpenseFormPage() {
   const [fields, setFields] = useState<FieldDef[]>([]);
   const [values, setValues] = useState<Record<string, unknown>>({});
   const [expenseId, setExpenseId] = useState<string | null>(null);
+  const [images, setImages] = useState<File[]>([]);
   const [error, setError] = useState("");
 
   const loadSchema = async (expenseTypeId?: string) => {
@@ -38,25 +39,47 @@ export function ExpenseFormPage() {
 
   const onChange = (key: string, value: unknown) => setValues((v) => ({ ...v, [key]: value }));
 
+  const uploadImages = async (id: string) => {
+    if (images.length === 0) return;
+    const formData = new FormData();
+    images.forEach((image) => formData.append("files", image));
+    await api.post(`/user/expenses/${id}/receipts`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+  };
+
+  const saveExpense = async () => {
+    let id = expenseId;
+    if (!id) {
+      const { data } = await api.post<Expense>("/user/expenses", {
+        expense_type_id: selectedTypeId,
+        field_values: values,
+      });
+      id = data.id;
+      setExpenseId(data.id);
+    } else {
+      await api.put(`/user/expenses/${id}`, {
+        expense_type_id: selectedTypeId,
+        field_values: values,
+      });
+    }
+    await uploadImages(id);
+    return id;
+  };
+
   const saveDraft = async () => {
     setError("");
     if (!selectedTypeId) {
       setError("请先选择 Expense 种类");
       return;
     }
-    if (expenseId) {
-      await api.put(`/user/expenses/${expenseId}`, {
-        expense_type_id: selectedTypeId,
-        field_values: values,
-      });
-    } else {
-      const { data } = await api.post<Expense>("/user/expenses", {
-        expense_type_id: selectedTypeId,
-        field_values: values,
-      });
-      setExpenseId(data.id);
+    try {
+      await saveExpense();
+      navigate("/expenses");
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setError(typeof msg === "string" ? msg : "保存失败");
     }
-    navigate("/expenses");
   };
 
   const submit = async (e: FormEvent) => {
@@ -67,19 +90,7 @@ export function ExpenseFormPage() {
       return;
     }
     try {
-      let id = expenseId;
-      if (!id) {
-        const { data } = await api.post<Expense>("/user/expenses", {
-          expense_type_id: selectedTypeId,
-          field_values: values,
-        });
-        id = data.id;
-      } else {
-        await api.put(`/user/expenses/${id}`, {
-          expense_type_id: selectedTypeId,
-          field_values: values,
-        });
-      }
+      const id = await saveExpense();
       await api.post(`/user/expenses/${id}/submit`);
       navigate("/expenses");
     } catch (err: unknown) {
@@ -104,6 +115,20 @@ export function ExpenseFormPage() {
           </select>
         </div>
         <DynamicFieldForm fields={fields} values={values} onChange={onChange} />
+        <div className="form-group">
+          <label>上传图片</label>
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={(e) => setImages(Array.from(e.target.files ?? []))}
+          />
+          {images.length > 0 && (
+            <p style={{ marginTop: "0.5rem" }}>
+              已选择：{images.map((image) => image.name).join(", ")}
+            </p>
+          )}
+        </div>
         {error && <p style={{ color: "crimson" }}>{error}</p>}
         <div style={{ display: "flex", gap: "0.5rem" }}>
           <button type="button" className="btn btn-secondary" onClick={saveDraft}>

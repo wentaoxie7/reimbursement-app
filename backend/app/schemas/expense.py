@@ -34,6 +34,12 @@ class PublishedFieldResponse(BaseModel):
     show_in_lists: bool = False
 
 
+class ReceiptResponse(BaseModel):
+    id: str
+    file_url: str
+    mime_type: str | None = None
+
+
 class ExpenseResponse(ORMBase):
     id: str
     owner_id: str
@@ -51,6 +57,7 @@ class ExpenseResponse(ORMBase):
     last_action_type: str | None = None
     last_action_comment: str | None = None
     last_action_actor_name: str | None = None
+    receipts: list[ReceiptResponse] = []
 
 
 class FieldSchemaResponse(BaseModel):

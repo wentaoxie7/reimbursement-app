@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api, type Expense, type FieldDef, type FieldSchema } from "../api/client";
 
 export function ApprovalTasksPage() {
@@ -87,6 +88,9 @@ export function ApprovalTasksPage() {
                   />
                 </td>
                 <td>
+                  <Link to={`/expenses/${t.id}`} state={{ returnTo: "/approval-tasks" }}>
+                    详情
+                  </Link>{" "}
                   <button className="btn btn-primary" type="button" onClick={() => approve(t.id)}>
                     通过
                   </button>{" "}

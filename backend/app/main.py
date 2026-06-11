@@ -1,11 +1,17 @@
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.api import auth
 from app.api.admin import approval_config, fields, page_access, users
 from app.api.user import approval, expenses
 from app.core.config import settings
 from app.db.bootstrap import ensure_database_schema
+
+UPLOAD_ROOT = Path(__file__).resolve().parents[1] / "uploads"
+UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(
     title="Reimbursement API",
@@ -28,6 +34,7 @@ app.include_router(fields.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
 app.include_router(approval_config.router, prefix="/api")
 app.include_router(page_access.router, prefix="/api")
+app.mount("/api/uploads", StaticFiles(directory=UPLOAD_ROOT), name="uploads")
 
 
 @app.on_event("startup")

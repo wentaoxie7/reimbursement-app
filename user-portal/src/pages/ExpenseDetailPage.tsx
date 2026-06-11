@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { api, formatExpenseStatus, type Expense, type FieldDef, type FieldSchema } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
@@ -14,8 +14,8 @@ export function ExpenseDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [expense, setExpense] = useState<Expense | null>(null);
   const [expenseTypes, setExpenseTypes] = useState<FieldSchema["expense_types"]>([]);
-  const [selectedTypeId, setSelectedTypeId] = useState("");
   const [fields, setFields] = useState<FieldDef[]>([]);
+  const [selectedTypeId, setSelectedTypeId] = useState("");
   const [values, setValues] = useState<Record<string, unknown>>({});
   const [error, setError] = useState("");
   const location = useLocation();
@@ -78,6 +78,20 @@ export function ExpenseDetailPage() {
     }
   };
 
+  const visibleFields = useMemo(() => {
+    const schemaKeys = new Set(fields.map((field) => field.field_key));
+    const extras = Object.keys(expense?.field_values ?? {})
+      .filter((key) => !schemaKeys.has(key))
+      .map((key, index) => ({
+        field_key: key,
+        label: key,
+        field_type: "TEXT",
+        required: false,
+        display_order: fields.length + index,
+      }));
+    return [...fields, ...extras];
+  }, [expense?.field_values, fields]);
+
   if (!expense) return <p>加载中…</p>;
 
   const isOwner = expense.owner_id === user?.id;
@@ -139,8 +153,44 @@ export function ExpenseDetailPage() {
           </button>
         </form>
       ) : (
-        <pre>{JSON.stringify(expense.field_values, null, 2)}</pre>
+        <div className="form-group">
+          <label>Expense 信息</label>
+          <table>
+            <tbody>
+              {visibleFields.map((field) => (
+                <tr key={field.field_key}>
+                  <th style={{ width: "14rem" }}>{field.label}</th>
+                  <td>{String(expense.field_values[field.field_key] ?? "-")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
+      <div className="form-group">
+        <label>上传图片</label>
+        {expense.receipts && expense.receipts.length > 0 ? (
+          <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+            {expense.receipts.map((receipt) => (
+              <a key={receipt.id} href={receipt.file_url} target="_blank" rel="noreferrer">
+                <img
+                  src={receipt.file_url}
+                  alt="expense receipt"
+                  style={{
+                    width: "180px",
+                    height: "180px",
+                    objectFit: "cover",
+                    borderRadius: "8px",
+                    border: "1px solid #d1d5db",
+                  }}
+                />
+              </a>
+            ))}
+          </div>
+        ) : (
+          <p>暂无图片</p>
+        )}
+      </div>
       <p>
         <Link to={returnTo}>返回列表</Link>
       </p>

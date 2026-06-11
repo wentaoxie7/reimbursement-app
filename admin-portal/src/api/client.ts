@@ -17,6 +17,7 @@ export type FieldDefinition = {
   expense_type_id?: string | null;
   is_global: boolean;
   show_in_lists: boolean;
+  options?: { choices?: string[] } | null;
   field_key: string;
   label: string;
   field_type: string;

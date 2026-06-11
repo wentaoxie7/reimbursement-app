@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_page_access, require_permission
@@ -8,11 +8,24 @@ from app.models.user import User
 from app.schemas.common import MessageResponse
 from app.schemas.expense import ExpenseCreate, ExpenseResponse, ExpenseUpdate, FieldSchemaResponse
 from app.services.expense import ExpenseService
+from app.services.approval_engine import ApprovalEngine
 from app.services.expense_response import build_expense_response
 from app.services.field_schema import FieldSchemaService
 from app.services.page_access import PageAccessService
 
 router = APIRouter(prefix="/user", tags=["user-expenses"])
+
+
+def _can_view_expense(user: User, expense: Expense, db: Session) -> bool:
+    if expense.owner_id == user.id:
+        return True
+    owner = db.get(User, expense.owner_id)
+    can_view_all = PageAccessService(db).has(user.id, "USER_ALL_EXPENSES")
+    if can_view_all and owner and owner.org_id == user.org_id:
+        return True
+    if user.org_id == (owner.org_id if owner else None) and ApprovalEngine(db).is_current_approver(user.id, expense):
+        return True
+    return False
 
 
 @router.get("/field-schema", response_model=FieldSchemaResponse)
@@ -71,12 +84,22 @@ def get_expense(
     db: Session = Depends(get_db),
 ) -> ExpenseResponse:
     expense = db.get(Expense, expense_id)
-    if not expense:
+    if not expense or not _can_view_expense(user, expense, db):
         raise HTTPException(status_code=404, detail="Expense not found")
-    owner = db.get(User, expense.owner_id)
-    can_view_all = PageAccessService(db).has(user.id, "USER_ALL_EXPENSES")
-    if expense.owner_id != user.id and not (can_view_all and owner and owner.org_id == user.org_id):
-        raise HTTPException(status_code=404, detail="Expense not found")
+    return build_expense_response(db, expense)
+
+
+@router.post("/expenses/{expense_id}/receipts", response_model=ExpenseResponse)
+def upload_receipts(
+    expense_id: str,
+    files: list[UploadFile] = File(...),
+    user: User = Depends(require_permission("EXPENSE_CREATE")),
+    db: Session = Depends(get_db),
+) -> ExpenseResponse:
+    try:
+        expense = ExpenseService(db, user.org_id).add_receipts(expense_id, user.id, files)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
     return build_expense_response(db, expense)
 
 
