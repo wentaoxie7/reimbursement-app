@@ -19,14 +19,18 @@ export function FieldConfigPage() {
   const [showInLists, setShowInLists] = useState(false);
   const [msg, setMsg] = useState("");
 
+  const sortExpenseTypes = (items: ExpenseType[]) =>
+  [...items].sort((a, b) => a.display_order - b.display_order || a.name.localeCompare(b.name));
+
   const loadExpenseTypes = async () => {
     const { data } = await api.get<ExpenseType[]>("/admin/expense-types");
-    setExpenseTypes(data);
+    const sorted = sortExpenseTypes(data);
+    setExpenseTypes(sorted);
     setSelectedTypeId((current) => {
-      if (current && data.some((item) => item.id === current)) return current;
-      return data[0]?.id ?? "";
+      if (current && sorted.some((item) => item.id === current)) return current;
+      return sorted[0]?.id ?? "";
     });
-    return data;
+    return sorted;
   };
 
   const loadFields = async (scope = fieldScope, expenseTypeId = selectedTypeId) => {
@@ -82,22 +86,21 @@ export function FieldConfigPage() {
 
   const updateExpenseType = async (
     expenseType: ExpenseType,
-    patch: Partial<Pick<ExpenseType, "code" | "name" | "display_order">>
+    patch: Partial<Pick<ExpenseType, "display_order" | "code" | "name">>
   ) => {
     try {
       const { data } = await api.put<ExpenseType>(`/admin/expense-types/${expenseType.id}`, patch);
       setExpenseTypes((current) =>
-        current
-          .map((item) => (item.id === expenseType.id ? data : item))
-          .sort((a, b) => a.display_order - b.display_order || a.name.localeCompare(b.name))
+        sortExpenseTypes(current.map((item) => (item.id === expenseType.id ? data : item)))
       );
       setMsg("Expense 种类已更新。发布 Schema 后用户端生效。");
     } catch (err: unknown) {
       const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       setMsg(typeof detail === "string" ? detail : "更新失败");
+      loadExpenseTypes();
     }
   };
-
+  
   const addField = async (e: FormEvent) => {
     e.preventDefault();
     if (fieldScope === "typed" && !selectedTypeId) {
@@ -194,7 +197,7 @@ export function FieldConfigPage() {
                         defaultValue={expenseType.display_order}
                         onBlur={(e) => {
                           const displayOrder = Number(e.target.value);
-                          if (displayOrder !== expenseType.display_order) {
+                          if (Number.isFinite(displayOrder) && displayOrder !== expenseType.display_order) {
                             updateExpenseType(expenseType, { display_order: displayOrder });
                           }
                         }}
