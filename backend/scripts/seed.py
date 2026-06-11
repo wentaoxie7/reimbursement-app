@@ -243,17 +243,24 @@ def ensure_expense_types(db: Session) -> dict[str, ExpenseType]:
                 org_id=ORG_ID,
                 code=code,
                 name=name,
+                active=active,
+                display_order=display_order,
             )
             db.add(expense_type)
             db.flush()
-        expense_type.name = name
-        expense_type.active = active
-        expense_type.display_order = display_order
         expense_type_map[code] = expense_type
     return expense_type_map
 
 
 def ensure_fields(db: Session, expense_type_map: dict[str, ExpenseType]) -> None:
+    existing_field = db.scalars(
+        select(ExpenseFieldDefinition).where(
+            ExpenseFieldDefinition.org_id == ORG_ID
+        )
+    ).first()
+
+    if existing_field:
+        return
     default_type = expense_type_map["GENERAL"]
     for key, label, field_type, required, order, options, show_in_lists in DEFAULT_FIELDS:
         field = db.scalars(
