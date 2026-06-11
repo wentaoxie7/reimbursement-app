@@ -41,7 +41,11 @@ export default function App() {
                   </NavLink>
                 )}
                 {hasPageAccess("USER_ALL_EXPENSES") && <NavLink to="/all-expenses">全部报销</NavLink>}
-                {hasPageAccess("USER_MY_EXPENSES") && <NavLink to="/expenses">我的报销</NavLink>}
+                {hasPageAccess("USER_MY_EXPENSES") && (
+                  <NavLink to="/expenses" end>
+                    我的报销
+                  </NavLink>
+                )}
                 {hasPageAccess("USER_NEW_EXPENSE") && hasPermission("EXPENSE_CREATE") && <NavLink to="/expenses/new">新建</NavLink>}
                 {hasPageAccess("USER_APPROVAL_TASKS") && <NavLink to="/approval-tasks">审核任务</NavLink>}
                 {hasPageAccess("USER_SETTINGS") && <NavLink to="/settings">设置</NavLink>}

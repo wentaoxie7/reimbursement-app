@@ -213,9 +213,10 @@ def get_or_create_user(db: Session, email: str, password: str, full_name: str) -
     user = db.scalars(select(User).where(User.email == email)).first()
     if user:
         user.org_id = ORG_ID
-        user.full_name = full_name
-        user.active = True
+        if user.active is None:
+            user.active = True
         return user
+
     user = User(
         id=str(uuid.uuid4()),
         org_id=ORG_ID,

@@ -1,12 +1,20 @@
 import { useEffect, useState } from "react";
-import { api, type Expense } from "../api/client";
+import { api, type Expense, type FieldDef, type FieldSchema } from "../api/client";
 
 export function ApprovalTasksPage() {
   const [tasks, setTasks] = useState<Expense[]>([]);
+  const [listFields, setListFields] = useState<FieldDef[]>([]);
   const [comments, setComments] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
 
-  const load = () => api.get<Expense[]>("/user/approval-tasks").then(({ data }) => setTasks(data));
+  const load = () =>
+    Promise.all([
+      api.get<Expense[]>("/user/approval-tasks"),
+      api.get<FieldSchema>("/user/field-schema"),
+    ]).then(([tasksRes, schemaRes]) => {
+      setTasks(tasksRes.data);
+      setListFields(schemaRes.data.list_fields);
+    });
 
   useEffect(() => {
     load();
@@ -54,8 +62,10 @@ export function ApprovalTasksPage() {
           <thead>
             <tr>
               <th>提交人</th>
-              <th>金额</th>
-              <th>类别</th>
+              <th>Expense Type</th>
+              {listFields.map((field) => (
+                <th key={field.field_key}>{field.label}</th>
+              ))}
               <th>审核记录</th>
               <th>操作</th>
             </tr>
@@ -63,9 +73,11 @@ export function ApprovalTasksPage() {
           <tbody>
             {tasks.map((t) => (
               <tr key={t.id}>
-                <td>{t.owner_id.slice(0, 8)}…</td>
-                <td>{String(t.field_values.amount ?? "-")}</td>
-                <td>{String(t.field_values.category ?? "-")}</td>
+                <td>{t.owner_name ?? t.owner_id.slice(0, 8)}</td>
+                <td>{t.expense_type_name ?? "-"}</td>
+                {listFields.map((field) => (
+                  <td key={field.field_key}>{String(t.field_values[field.field_key] ?? "-")}</td>
+                ))}
                 <td style={{ minWidth: "16rem" }}>
                   <textarea
                     value={comments[t.id] ?? ""}
