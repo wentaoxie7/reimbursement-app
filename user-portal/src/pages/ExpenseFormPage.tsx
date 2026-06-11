@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api, type Expense, type FieldDef, type FieldSchema } from "../api/client";
+import { api, getApiErrorMessage, type Expense, type FieldDef, type FieldSchema } from "../api/client";
 import { DynamicFieldForm } from "../components/DynamicFieldForm";
 
 function keepMatchingValues(fields: FieldDef[], current: Record<string, unknown>) {
@@ -43,9 +43,8 @@ export function ExpenseFormPage() {
     if (images.length === 0) return;
     const formData = new FormData();
     images.forEach((image) => formData.append("files", image));
-    await api.post(`/user/expenses/${id}/receipts`, formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
+    await api.post(`/user/expenses/${id}/receipts`, formData);
+    setImages([]);
   };
 
   const saveExpense = async () => {
@@ -77,8 +76,7 @@ export function ExpenseFormPage() {
       await saveExpense();
       navigate("/expenses");
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setError(typeof msg === "string" ? msg : "保存失败");
+      setError(getApiErrorMessage(err, "保存失败"));
     }
   };
 
@@ -94,8 +92,7 @@ export function ExpenseFormPage() {
       await api.post(`/user/expenses/${id}/submit`);
       navigate("/expenses");
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setError(typeof msg === "string" ? msg : "提交失败");
+      setError(getApiErrorMessage(err, "提交失败"));
     }
   };
 

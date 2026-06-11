@@ -1,3 +1,4 @@
+import mimetypes
 import shutil
 import uuid
 from datetime import datetime, timezone
@@ -89,7 +90,8 @@ class ExpenseService:
         expense_dir.mkdir(parents=True, exist_ok=True)
 
         for upload in files:
-            content_type = upload.content_type or ""
+            guessed_content_type, _ = mimetypes.guess_type(upload.filename or "")
+            content_type = upload.content_type or guessed_content_type or ""
             if not content_type.startswith("image/"):
                 raise ValueError("Only image files are supported")
             extension = Path(upload.filename or "").suffix or ".bin"
@@ -106,6 +108,21 @@ class ExpenseService:
             )
             self.db.add(receipt)
 
+        self.db.commit()
+        self.db.refresh(expense)
+        return expense
+
+    def delete_receipt(self, expense_id: str, receipt_id: str, owner_id: str) -> Expense:
+        expense = self._get_editable_expense(expense_id, owner_id)
+        receipt = self.db.get(Receipt, receipt_id)
+        if not receipt or receipt.expense_id != expense.id:
+            raise ValueError("Receipt not found")
+
+        file_path = self._receipt_path_from_url(receipt.file_url)
+        if file_path and file_path.exists():
+            file_path.unlink()
+
+        self.db.delete(receipt)
         self.db.commit()
         self.db.refresh(expense)
         return expense

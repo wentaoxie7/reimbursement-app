@@ -42,6 +42,8 @@ class FieldDefinitionResponse(ORMBase):
     required: bool
     display_order: int
     enabled: bool
+    options: dict | None = None
+    validation: dict | None = None
 
 
 class FieldReorderRequest(BaseModel):

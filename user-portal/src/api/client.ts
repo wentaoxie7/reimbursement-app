@@ -62,6 +62,29 @@ export type Expense = {
   created_at: string;
 };
 
+export function getApiErrorMessage(error: unknown, fallback: string) {
+  if (axios.isAxiosError(error)) {
+    if (error.response?.status === 413) {
+      return "上传图片过大，请上传 20MB 以内的图片";
+    }
+
+    const detail = error.response?.data?.detail;
+    if (typeof detail === "string" && detail.trim()) {
+      return detail;
+    }
+
+    if (typeof error.response?.data === "string" && error.response.data.trim()) {
+      return error.response.data;
+    }
+
+    if (typeof error.message === "string" && error.message.trim()) {
+      return error.message;
+    }
+  }
+
+  return fallback;
+}
+
 export function formatExpenseStatus(expense: Expense) {
   const names = expense.current_approver_names ?? [];
   if (expense.status === "IN_APPROVAL" && names.length > 0) {

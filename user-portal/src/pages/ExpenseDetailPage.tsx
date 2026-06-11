@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
-import { api, formatExpenseStatus, type Expense, type FieldDef, type FieldSchema } from "../api/client";
+import { api, formatExpenseStatus, getApiErrorMessage, type Expense, type FieldDef, type FieldSchema } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { DynamicFieldForm } from "../components/DynamicFieldForm";
 
@@ -17,9 +17,19 @@ export function ExpenseDetailPage() {
   const [fields, setFields] = useState<FieldDef[]>([]);
   const [selectedTypeId, setSelectedTypeId] = useState("");
   const [values, setValues] = useState<Record<string, unknown>>({});
+  const [pendingImages, setPendingImages] = useState<File[]>([]);
   const [error, setError] = useState("");
   const location = useLocation();
   const returnTo = (location.state as { returnTo?: string } | null)?.returnTo ?? "/expenses";
+
+  const loadExpense = async () => {
+    if (!id) return;
+    const { data } = await api.get<Expense>(`/user/expenses/${id}`);
+    setExpense(data);
+    setSelectedTypeId(data.expense_type_id ?? "");
+    setValues(data.field_values);
+    await loadSchema(data.expense_type_id ?? undefined);
+  };
 
   const loadSchema = async (expenseTypeId?: string) => {
     const { data } = await api.get<FieldSchema>("/user/field-schema", {
@@ -32,19 +42,33 @@ export function ExpenseDetailPage() {
   };
 
   useEffect(() => {
-    if (!id) return;
-    api.get<Expense>(`/user/expenses/${id}`).then(({ data }) => {
-      setExpense(data);
-      setSelectedTypeId(data.expense_type_id ?? "");
-      setValues(data.field_values);
-      loadSchema(data.expense_type_id ?? undefined);
-    });
+    loadExpense();
   }, [id]);
 
   useEffect(() => {
     if (!expense || !selectedTypeId || selectedTypeId === expense.expense_type_id) return;
     loadSchema(selectedTypeId);
   }, [expense, selectedTypeId]);
+
+  const uploadPendingImages = async () => {
+    if (!id || pendingImages.length === 0) return;
+    const formData = new FormData();
+    pendingImages.forEach((image) => formData.append("files", image));
+    const { data } = await api.post<Expense>(`/user/expenses/${id}/receipts`, formData);
+    setExpense(data);
+    setPendingImages([]);
+  };
+
+  const deleteReceipt = async (receiptId: string) => {
+    if (!id || !window.confirm("确定删除这张图片？")) return;
+    setError("");
+    try {
+      const { data } = await api.delete<Expense>(`/user/expenses/${id}/receipts/${receiptId}`);
+      setExpense(data);
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, "删除图片失败"));
+    }
+  };
 
   const resubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -55,11 +79,11 @@ export function ExpenseDetailPage() {
         expense_type_id: selectedTypeId,
         field_values: values,
       });
+      await uploadPendingImages();
       await api.post(`/user/expenses/${id}/${expense?.status === "DRAFT" ? "submit" : "resubmit"}`);
       window.location.href = "/expenses";
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setError(typeof msg === "string" ? msg : "提交失败");
+      setError(getApiErrorMessage(err, "提交失败"));
     }
   };
 
@@ -71,10 +95,9 @@ export function ExpenseDetailPage() {
       setExpense(data);
       setSelectedTypeId(data.expense_type_id ?? "");
       setValues(data.field_values);
-      loadSchema(data.expense_type_id ?? undefined);
+      await loadSchema(data.expense_type_id ?? undefined);
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setError(typeof msg === "string" ? msg : "撤回失败");
+      setError(getApiErrorMessage(err, "撤回失败"));
     }
   };
 
@@ -147,6 +170,20 @@ export function ExpenseDetailPage() {
             </select>
           </div>
           <DynamicFieldForm fields={fields} values={values} onChange={(k, v) => setValues((s) => ({ ...s, [k]: v }))} />
+          <div className="form-group">
+            <label>上传图片</label>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={(e) => setPendingImages(Array.from(e.target.files ?? []))}
+            />
+            {pendingImages.length > 0 && (
+              <p style={{ marginTop: "0.5rem" }}>
+                待上传：{pendingImages.map((image) => image.name).join(", ")}
+              </p>
+            )}
+          </div>
           {error && <p style={{ color: "crimson" }}>{error}</p>}
           <button type="submit" className="btn btn-primary">
             {expense.status === "DRAFT" ? "修改并提交" : "修改并重新提交"}
@@ -168,23 +205,36 @@ export function ExpenseDetailPage() {
         </div>
       )}
       <div className="form-group">
-        <label>上传图片</label>
+        <label>图片</label>
         {expense.receipts && expense.receipts.length > 0 ? (
           <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
             {expense.receipts.map((receipt) => (
-              <a key={receipt.id} href={receipt.file_url} target="_blank" rel="noreferrer">
-                <img
-                  src={receipt.file_url}
-                  alt="expense receipt"
-                  style={{
-                    width: "180px",
-                    height: "180px",
-                    objectFit: "cover",
-                    borderRadius: "8px",
-                    border: "1px solid #d1d5db",
-                  }}
-                />
-              </a>
+              <div key={receipt.id}>
+                <a href={receipt.file_url} target="_blank" rel="noreferrer">
+                  <img
+                    src={receipt.file_url}
+                    alt="expense receipt"
+                    style={{
+                      width: "180px",
+                      height: "180px",
+                      objectFit: "cover",
+                      borderRadius: "8px",
+                      border: "1px solid #d1d5db",
+                      display: "block",
+                    }}
+                  />
+                </a>
+                {editable && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ marginTop: "0.5rem", width: "100%" }}
+                    onClick={() => deleteReceipt(receipt.id)}
+                  >
+                    删除图片
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         ) : (

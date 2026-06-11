@@ -34,7 +34,7 @@ class PublishedFieldResponse(BaseModel):
     show_in_lists: bool = False
 
 
-class ReceiptResponse(BaseModel):
+class ReceiptResponse(ORMBase):
     id: str
     file_url: str
     mime_type: str | None = None

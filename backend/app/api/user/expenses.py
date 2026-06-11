@@ -103,6 +103,20 @@ def upload_receipts(
     return build_expense_response(db, expense)
 
 
+@router.delete("/expenses/{expense_id}/receipts/{receipt_id}", response_model=ExpenseResponse)
+def delete_receipt(
+    expense_id: str,
+    receipt_id: str,
+    user: User = Depends(require_permission("EXPENSE_CREATE")),
+    db: Session = Depends(get_db),
+) -> ExpenseResponse:
+    try:
+        expense = ExpenseService(db, user.org_id).delete_receipt(expense_id, receipt_id, user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return build_expense_response(db, expense)
+
+
 @router.put("/expenses/{expense_id}", response_model=ExpenseResponse)
 def update_expense(
     expense_id: str,
