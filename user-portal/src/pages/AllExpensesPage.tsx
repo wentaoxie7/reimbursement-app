@@ -23,12 +23,12 @@ export function AllExpensesPage() {
         <thead>
           <tr>
             <th>提交人</th>
-            <th>ID</th>
-            <th>状态</th>
-            <th>最新记录</th>
+            <th>Expense Type</th>
             {listFields.map((field) => (
               <th key={field.field_key}>{field.label}</th>
             ))}
+            <th>状态</th>
+            <th>最新记录</th>
             <th></th>
           </tr>
         </thead>
@@ -36,7 +36,10 @@ export function AllExpensesPage() {
           {items.map((expense) => (
             <tr key={expense.id}>
               <td>{expense.owner_name ?? expense.owner_id.slice(0, 8)}</td>
-              <td>{expense.id.slice(0, 8)}…</td>
+              <td>{expense.expense_type_name ?? "-"}</td>
+              {listFields.map((field) => (
+                <td key={field.field_key}>{String(expense.field_values[field.field_key] ?? "-")}</td>
+              ))}
               <td>
                 <span className="badge">{formatExpenseStatus(expense)}</span>
               </td>
@@ -45,9 +48,6 @@ export function AllExpensesPage() {
                   ? `${expense.last_action_actor_name ?? "审核人"}: ${expense.last_action_comment}`
                   : "-"}
               </td>
-              {listFields.map((field) => (
-                <td key={field.field_key}>{String(expense.field_values[field.field_key] ?? "-")}</td>
-              ))}
               <td>
                 <Link to={`/expenses/${expense.id}`} state={{ returnTo: "/all-expenses" }}>
                   详情

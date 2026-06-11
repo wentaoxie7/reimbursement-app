@@ -21,7 +21,9 @@ class FieldDefinitionCreate(BaseModel):
 class FieldDefinitionUpdate(BaseModel):
     is_global: bool | None = None
     show_in_lists: bool | None = None
+    field_key: str | None = None
     label: str | None = None
+    field_type: FieldType | None = None
     required: bool | None = None
     display_order: int | None = None
     enabled: bool | None = None

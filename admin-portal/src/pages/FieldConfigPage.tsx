@@ -130,6 +130,30 @@ export function FieldConfigPage() {
     setMsg(data.message);
   };
 
+  const updateField = async (
+    field: FieldDefinition,
+    patch: Partial<
+      Pick<
+        FieldDefinition,
+        "display_order" | "field_key" | "label" | "field_type" | "required" | "show_in_lists"
+      >
+    >
+  ) => {
+    try {
+      const { data } = await api.put<FieldDefinition>(`/admin/fields/${field.id}`, patch);
+      setFields((current) =>
+        current
+          .map((item) => (item.id === field.id ? data : item))
+          .sort((a, b) => a.display_order - b.display_order || a.label.localeCompare(b.label))
+      );
+      setMsg("字段已更新。发布 Schema 后用户端生效。");
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setMsg(typeof detail === "string" ? detail : "更新失败");
+      loadFields(fieldScope, selectedTypeId);
+    }
+  };
+
   const deleteField = async (field: FieldDefinition) => {
     if (!window.confirm(`删除字段 ${field.label}？`)) return;
     await api.delete(`/admin/fields/${field.id}`);
@@ -349,12 +373,69 @@ export function FieldConfigPage() {
               <tbody>
                 {fields.map((field) => (
                   <tr key={field.id}>
-                    <td>{field.display_order}</td>
-                    <td>{field.field_key}</td>
-                    <td>{field.label}</td>
-                    <td>{field.field_type}</td>
-                    <td>{field.required ? "是" : "否"}</td>
-                    {fieldScope === "global" && <td>{field.show_in_lists ? "显示" : "隐藏"}</td>}
+                    <td>
+                      <input
+                        type="number"
+                        defaultValue={field.display_order}
+                        onBlur={(e) => {
+                          const displayOrder = Number(e.target.value);
+                          if (Number.isFinite(displayOrder) && displayOrder !== field.display_order) {
+                            updateField(field, { display_order: displayOrder });
+                          }
+                        }}
+                        style={{ width: "5rem" }}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        defaultValue={field.field_key}
+                        onBlur={(e) => {
+                          const fieldKey = e.target.value.trim();
+                          if (fieldKey && fieldKey !== field.field_key) {
+                            updateField(field, { field_key: fieldKey });
+                          }
+                        }}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        defaultValue={field.label}
+                        onBlur={(e) => {
+                          const nextLabel = e.target.value.trim();
+                          if (nextLabel && nextLabel !== field.label) {
+                            updateField(field, { label: nextLabel });
+                          }
+                        }}
+                      />
+                    </td>
+                    <td>
+                      <select
+                        value={field.field_type}
+                        onChange={(e) => updateField(field, { field_type: e.target.value })}
+                      >
+                        <option value="TEXT">TEXT</option>
+                        <option value="NUMBER">NUMBER</option>
+                        <option value="CURRENCY">CURRENCY</option>
+                        <option value="DATE">DATE</option>
+                        <option value="SELECT">SELECT</option>
+                      </select>
+                    </td>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={field.required}
+                        onChange={(e) => updateField(field, { required: e.target.checked })}
+                      />
+                    </td>
+                    {fieldScope === "global" && (
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={field.show_in_lists}
+                          onChange={(e) => updateField(field, { show_in_lists: e.target.checked })}
+                        />
+                      </td>
+                    )}
                     <td>
                       <button type="button" className="btn btn-secondary" onClick={() => deleteField(field)}>
                         删除

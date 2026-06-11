@@ -175,22 +175,35 @@ class FieldSchemaService:
             raise ValueError("Field not found")
 
         updates = dto.model_dump(exclude_unset=True)
+
+        if "field_key" in updates and updates["field_key"] is not None:
+            updates["field_key"] = updates["field_key"].strip()
+
+        if "label" in updates and updates["label"] is not None:
+            updates["label"] = updates["label"].strip()
+
         next_is_global = updates.get("is_global", field.is_global)
         next_expense_type_id = None if next_is_global else field.expense_type_id
-        self._ensure_unique_field_key(field.field_key, next_is_global, next_expense_type_id, field.id)
+        next_field_key = updates.get("field_key", field.field_key)
+
+        self._ensure_unique_field_key(next_field_key, next_is_global, next_expense_type_id, field.id)
+
         if "is_global" in updates and updates["is_global"] is not None:
             field.is_global = updates.pop("is_global")
             if field.is_global:
                 field.expense_type_id = None
             elif not field.expense_type_id:
                 raise ValueError("Type-specific fields require an expense type")
+
         for key, value in updates.items():
             if key == "show_in_lists" and not field.is_global:
                 setattr(field, key, False)
                 continue
             setattr(field, key, value)
+
         if not field.is_global:
             field.show_in_lists = False
+
         self.db.commit()
         self.db.refresh(field)
         return field
