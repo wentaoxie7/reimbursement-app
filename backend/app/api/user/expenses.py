@@ -23,7 +23,14 @@ def get_field_schema(
 ) -> FieldSchemaResponse:
     schema = FieldSchemaService(db, user.org_id).get_published_schema(expense_type_id)
     if not schema:
-        return FieldSchemaResponse(version_id=None, version=None, expense_types=[], selected_expense_type_id=None, fields=[])
+        return FieldSchemaResponse(
+            version_id=None,
+            version=None,
+            expense_types=[],
+            selected_expense_type_id=None,
+            list_fields=[],
+            fields=[],
+        )
     return FieldSchemaResponse(**schema)
 
 

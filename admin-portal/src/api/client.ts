@@ -15,6 +15,8 @@ api.interceptors.request.use((config) => {
 export type FieldDefinition = {
   id: string;
   expense_type_id?: string | null;
+  is_global: boolean;
+  show_in_lists: boolean;
   field_key: string;
   label: string;
   field_type: string;

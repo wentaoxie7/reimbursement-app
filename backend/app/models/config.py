@@ -35,6 +35,8 @@ class ExpenseFieldDefinition(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     org_id: Mapped[str] = mapped_column(String(36), ForeignKey("organizations.id"), nullable=False)
     expense_type_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("expense_types.id"), nullable=True)
+    is_global: Mapped[bool] = mapped_column(Boolean, default=False)
+    show_in_lists: Mapped[bool] = mapped_column(Boolean, default=False)
     field_key: Mapped[str] = mapped_column(String(64), nullable=False)
     label: Mapped[str] = mapped_column(String(128), nullable=False)
     field_type: Mapped[FieldType] = mapped_column(SAEnum(FieldType), nullable=False)
@@ -51,7 +53,7 @@ class FieldSchemaVersion(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     org_id: Mapped[str] = mapped_column(String(36), ForeignKey("organizations.id"), nullable=False)
     version: Mapped[int] = mapped_column(Integer, nullable=False)
-    snapshot: Mapped[list] = mapped_column(JSONB, nullable=False)
+    snapshot: Mapped[dict] = mapped_column(JSONB, nullable=False)
     published_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     published_by: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
 

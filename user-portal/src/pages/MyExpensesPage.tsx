@@ -1,14 +1,21 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, formatExpenseStatus, type Expense } from "../api/client";
+import { api, formatExpenseStatus, type Expense, type FieldDef, type FieldSchema } from "../api/client";
 
 export function MyExpensesPage() {
   const [items, setItems] = useState<Expense[]>([]);
+  const [listFields, setListFields] = useState<FieldDef[]>([]);
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
 
   const load = () =>
-    api.get<Expense[]>("/user/expenses").then(({ data }) => setItems(data));
+    Promise.all([
+      api.get<Expense[]>("/user/expenses"),
+      api.get<FieldSchema>("/user/field-schema"),
+    ]).then(([expensesRes, schemaRes]) => {
+      setItems(expensesRes.data);
+      setListFields(schemaRes.data.list_fields);
+    });
 
   useEffect(() => {
     load();
@@ -58,35 +65,37 @@ export function MyExpensesPage() {
             <th>ID</th>
             <th>状态</th>
             <th>最新记录</th>
-            <th>金额</th>
-            <th>类别</th>
+            {listFields.map((field) => (
+              <th key={field.field_key}>{field.label}</th>
+            ))}
             <th></th>
           </tr>
         </thead>
         <tbody>
-          {items.map((e) => (
-            <tr key={e.id}>
-              <td>{e.id.slice(0, 8)}…</td>
+          {items.map((expense) => (
+            <tr key={expense.id}>
+              <td>{expense.id.slice(0, 8)}…</td>
               <td>
-                <span className="badge">{formatExpenseStatus(e)}</span>
+                <span className="badge">{formatExpenseStatus(expense)}</span>
               </td>
               <td>
-                {e.last_action_comment
-                  ? `${e.last_action_actor_name ?? "审核人"}: ${e.last_action_comment}`
+                {expense.last_action_comment
+                  ? `${expense.last_action_actor_name ?? "审核人"}: ${expense.last_action_comment}`
                   : "-"}
               </td>
-              <td>{String(e.field_values.amount ?? "-")}</td>
-              <td>{String(e.field_values.category ?? "-")}</td>
+              {listFields.map((field) => (
+                <td key={field.field_key}>{String(expense.field_values[field.field_key] ?? "-")}</td>
+              ))}
               <td>
-                <Link to={`/expenses/${e.id}`} state={{ returnTo: "/expenses" }}>
+                <Link to={`/expenses/${expense.id}`} state={{ returnTo: "/expenses" }}>
                   详情
                 </Link>
-                {canWithdraw(e) && (
-                  <button type="button" className="btn btn-secondary" onClick={() => withdraw(e)}>
+                {canWithdraw(expense) && (
+                  <button type="button" className="btn btn-secondary" onClick={() => withdraw(expense)}>
                     撤回
                   </button>
                 )}{" "}
-                <button type="button" className="btn btn-secondary" onClick={() => removeExpense(e)}>
+                <button type="button" className="btn btn-secondary" onClick={() => removeExpense(expense)}>
                   删除
                 </button>
               </td>

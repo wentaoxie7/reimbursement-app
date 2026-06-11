@@ -22,6 +22,18 @@ class ExpenseTypeOptionResponse(BaseModel):
     name: str
 
 
+class PublishedFieldResponse(BaseModel):
+    field_key: str
+    label: str
+    field_type: str
+    required: bool
+    display_order: int
+    options: dict | None = None
+    validation: dict | None = None
+    is_global: bool = False
+    show_in_lists: bool = False
+
+
 class ExpenseResponse(ORMBase):
     id: str
     owner_id: str
@@ -46,4 +58,5 @@ class FieldSchemaResponse(BaseModel):
     version: int | None
     expense_types: list[ExpenseTypeOptionResponse] = []
     selected_expense_type_id: str | None = None
-    fields: list[dict]
+    list_fields: list[PublishedFieldResponse] = []
+    fields: list[PublishedFieldResponse]

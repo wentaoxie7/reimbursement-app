@@ -34,5 +34,9 @@ def ensure_database_schema() -> None:
     with engine.begin() as connection:
         if "expense_type_id" not in field_columns:
             connection.execute(text("ALTER TABLE expense_field_definitions ADD COLUMN expense_type_id VARCHAR(36)"))
+        if "is_global" not in field_columns:
+            connection.execute(text("ALTER TABLE expense_field_definitions ADD COLUMN is_global BOOLEAN DEFAULT FALSE"))
+        if "show_in_lists" not in field_columns:
+            connection.execute(text("ALTER TABLE expense_field_definitions ADD COLUMN show_in_lists BOOLEAN DEFAULT FALSE"))
         if "expense_type_id" not in expense_columns:
             connection.execute(text("ALTER TABLE expenses ADD COLUMN expense_type_id VARCHAR(36)"))

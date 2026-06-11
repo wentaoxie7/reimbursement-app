@@ -5,7 +5,7 @@ import uuid
 from pathlib import Path
 
 import bcrypt
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -89,10 +89,10 @@ DEFAULT_PAGE_ACCESS = {
 }
 
 DEFAULT_FIELDS = [
-    ("amount", "Amount", FieldType.CURRENCY, True, 0, None),
-    ("expense_date", "Date", FieldType.DATE, True, 1, None),
-    ("category", "Category", FieldType.SELECT, True, 2, {"choices": ["Travel", "Meals", "Office"]}),
-    ("description", "Description", FieldType.TEXT, False, 3, None),
+    ("amount", "Amount", FieldType.CURRENCY, True, 0, None, True),
+    ("expense_date", "Date", FieldType.DATE, True, 1, None, False),
+    ("category", "Category", FieldType.SELECT, True, 2, {"choices": ["Travel", "Meals", "Office"]}, True),
+    ("description", "Description", FieldType.TEXT, False, 3, None, False),
 ]
 
 DEFAULT_EXPENSE_TYPES = [
@@ -255,27 +255,25 @@ def ensure_expense_types(db: Session) -> dict[str, ExpenseType]:
 
 def ensure_fields(db: Session, expense_type_map: dict[str, ExpenseType]) -> None:
     default_type = expense_type_map["GENERAL"]
-    for key, label, field_type, required, order, options in DEFAULT_FIELDS:
+    for key, label, field_type, required, order, options, show_in_lists in DEFAULT_FIELDS:
         field = db.scalars(
             select(ExpenseFieldDefinition).where(
                 ExpenseFieldDefinition.org_id == ORG_ID,
                 ExpenseFieldDefinition.field_key == key,
-                or_(
-                    ExpenseFieldDefinition.expense_type_id == default_type.id,
-                    ExpenseFieldDefinition.expense_type_id.is_(None),
-                ),
             )
         ).first()
         if not field:
             field = ExpenseFieldDefinition(
                 id=str(uuid.uuid4()),
                 org_id=ORG_ID,
-                expense_type_id=default_type.id,
                 field_key=key,
                 label=label,
                 field_type=field_type,
             )
             db.add(field)
+        field.expense_type_id = None
+        field.is_global = True
+        field.show_in_lists = show_in_lists
         field.label = label
         field.field_type = field_type
         field.required = required
@@ -286,10 +284,23 @@ def ensure_fields(db: Session, expense_type_map: dict[str, ExpenseType]) -> None
     for field in db.scalars(
         select(ExpenseFieldDefinition).where(
             ExpenseFieldDefinition.org_id == ORG_ID,
-            ExpenseFieldDefinition.expense_type_id.is_(None),
+            ExpenseFieldDefinition.field_key.in_([item[0] for item in DEFAULT_FIELDS]),
         )
     ).all():
-        field.expense_type_id = default_type.id
+        field.expense_type_id = None
+        field.is_global = True
+        field.show_in_lists = field.field_key in {"amount", "category"}
+
+    for field in db.scalars(
+        select(ExpenseFieldDefinition).where(
+            ExpenseFieldDefinition.org_id == ORG_ID,
+            ~ExpenseFieldDefinition.field_key.in_([item[0] for item in DEFAULT_FIELDS]),
+        )
+    ).all():
+        if field.expense_type_id is None:
+            field.expense_type_id = default_type.id
+        field.is_global = False
+        field.show_in_lists = False
 
     for expense in db.scalars(
         select(Expense)

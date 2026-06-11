@@ -68,10 +68,11 @@ def delete_expense_type(
 @router.get("/fields", response_model=list[FieldDefinitionResponse])
 def list_fields(
     expense_type_id: str | None = Query(None),
+    is_global: bool | None = Query(None),
     user: User = Depends(require_page_access("ADMIN_FIELDS")),
     db: Session = Depends(get_db),
 ) -> list[FieldDefinitionResponse]:
-    fields = FieldSchemaService(db, user.org_id).list_fields(expense_type_id)
+    fields = FieldSchemaService(db, user.org_id).list_fields(expense_type_id, is_global)
     return [FieldDefinitionResponse.model_validate(field) for field in fields]
 
 
@@ -121,7 +122,7 @@ def reorder_fields(
     user: User = Depends(require_page_access("ADMIN_FIELDS")),
     db: Session = Depends(get_db),
 ) -> MessageResponse:
-    FieldSchemaService(db, user.org_id).reorder(body.ordered_ids, body.expense_type_id)
+    FieldSchemaService(db, user.org_id).reorder(body.ordered_ids, body.expense_type_id, body.is_global)
     return MessageResponse(message="Reordered")
 
 

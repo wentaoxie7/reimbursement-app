@@ -6,7 +6,9 @@ from app.schemas.common import ORMBase
 
 
 class FieldDefinitionCreate(BaseModel):
-    expense_type_id: str
+    expense_type_id: str | None = None
+    is_global: bool = False
+    show_in_lists: bool = False
     field_key: str
     label: str
     field_type: FieldType
@@ -17,6 +19,8 @@ class FieldDefinitionCreate(BaseModel):
 
 
 class FieldDefinitionUpdate(BaseModel):
+    is_global: bool | None = None
+    show_in_lists: bool | None = None
     label: str | None = None
     required: bool | None = None
     display_order: int | None = None
@@ -28,6 +32,8 @@ class FieldDefinitionUpdate(BaseModel):
 class FieldDefinitionResponse(ORMBase):
     id: str
     expense_type_id: str | None
+    is_global: bool
+    show_in_lists: bool
     field_key: str
     label: str
     field_type: FieldType
@@ -38,6 +44,7 @@ class FieldDefinitionResponse(ORMBase):
 
 class FieldReorderRequest(BaseModel):
     expense_type_id: str | None = None
+    is_global: bool | None = None
     ordered_ids: list[str]
 
 

@@ -19,6 +19,8 @@ export type FieldDef = {
   required: boolean;
   display_order: number;
   options?: { choices?: string[] };
+  is_global?: boolean;
+  show_in_lists?: boolean;
 };
 
 export type ExpenseTypeOption = {
@@ -32,6 +34,7 @@ export type FieldSchema = {
   version: number | null;
   expense_types: ExpenseTypeOption[];
   selected_expense_type_id: string | null;
+  list_fields: FieldDef[];
   fields: FieldDef[];
 };
 

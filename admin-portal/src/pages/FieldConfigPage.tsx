@@ -2,9 +2,11 @@ import { FormEvent, useEffect, useState } from "react";
 import { api, type ExpenseType, type FieldDefinition } from "../api/client";
 
 type TabKey = "types" | "fields";
+type FieldScope = "global" | "typed";
 
 export function FieldConfigPage() {
   const [tab, setTab] = useState<TabKey>("types");
+  const [fieldScope, setFieldScope] = useState<FieldScope>("global");
   const [expenseTypes, setExpenseTypes] = useState<ExpenseType[]>([]);
   const [selectedTypeId, setSelectedTypeId] = useState("");
   const [fields, setFields] = useState<FieldDefinition[]>([]);
@@ -14,6 +16,7 @@ export function FieldConfigPage() {
   const [label, setLabel] = useState("");
   const [fieldType, setFieldType] = useState("TEXT");
   const [required, setRequired] = useState(false);
+  const [showInLists, setShowInLists] = useState(false);
   const [msg, setMsg] = useState("");
 
   const loadExpenseTypes = async () => {
@@ -26,13 +29,16 @@ export function FieldConfigPage() {
     return data;
   };
 
-  const loadFields = async (expenseTypeId: string) => {
-    if (!expenseTypeId) {
+  const loadFields = async (scope = fieldScope, expenseTypeId = selectedTypeId) => {
+    if (scope === "typed" && !expenseTypeId) {
       setFields([]);
       return;
     }
     const { data } = await api.get<FieldDefinition[]>("/admin/fields", {
-      params: { expense_type_id: expenseTypeId },
+      params:
+        scope === "global"
+          ? { is_global: true }
+          : { is_global: false, expense_type_id: expenseTypeId },
     });
     setFields(data);
   };
@@ -42,8 +48,8 @@ export function FieldConfigPage() {
   }, []);
 
   useEffect(() => {
-    loadFields(selectedTypeId);
-  }, [selectedTypeId]);
+    loadFields(fieldScope, selectedTypeId);
+  }, [fieldScope, selectedTypeId]);
 
   const addExpenseType = async (e: FormEvent) => {
     e.preventDefault();
@@ -74,14 +80,34 @@ export function FieldConfigPage() {
     }
   };
 
+  const updateExpenseType = async (
+    expenseType: ExpenseType,
+    patch: Partial<Pick<ExpenseType, "code" | "name" | "display_order">>
+  ) => {
+    try {
+      const { data } = await api.put<ExpenseType>(`/admin/expense-types/${expenseType.id}`, patch);
+      setExpenseTypes((current) =>
+        current
+          .map((item) => (item.id === expenseType.id ? data : item))
+          .sort((a, b) => a.display_order - b.display_order || a.name.localeCompare(b.name))
+      );
+      setMsg("Expense 种类已更新。发布 Schema 后用户端生效。");
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setMsg(typeof detail === "string" ? detail : "更新失败");
+    }
+  };
+
   const addField = async (e: FormEvent) => {
     e.preventDefault();
-    if (!selectedTypeId) {
+    if (fieldScope === "typed" && !selectedTypeId) {
       setMsg("请先创建并选择一个 Expense 种类");
       return;
     }
     await api.post("/admin/fields", {
-      expense_type_id: selectedTypeId,
+      expense_type_id: fieldScope === "typed" ? selectedTypeId : null,
+      is_global: fieldScope === "global",
+      show_in_lists: fieldScope === "global" ? showInLists : false,
       field_key: key,
       label,
       field_type: fieldType,
@@ -91,8 +117,9 @@ export function FieldConfigPage() {
     setKey("");
     setLabel("");
     setRequired(false);
+    setShowInLists(false);
     setMsg("字段已添加，发布 Schema 后用户端生效。");
-    loadFields(selectedTypeId);
+    loadFields(fieldScope, selectedTypeId);
   };
 
   const publish = async () => {
@@ -104,7 +131,7 @@ export function FieldConfigPage() {
     if (!window.confirm(`删除字段 ${field.label}？`)) return;
     await api.delete(`/admin/fields/${field.id}`);
     setMsg(`已删除字段：${field.label}。发布 Schema 后用户端生效。`);
-    loadFields(selectedTypeId);
+    loadFields(fieldScope, selectedTypeId);
   };
 
   return (
@@ -161,9 +188,41 @@ export function FieldConfigPage() {
               <tbody>
                 {expenseTypes.map((expenseType) => (
                   <tr key={expenseType.id}>
-                    <td>{expenseType.display_order}</td>
-                    <td>{expenseType.code}</td>
-                    <td>{expenseType.name}</td>
+                    <td>
+                      <input
+                        type="number"
+                        defaultValue={expenseType.display_order}
+                        onBlur={(e) => {
+                          const displayOrder = Number(e.target.value);
+                          if (displayOrder !== expenseType.display_order) {
+                            updateExpenseType(expenseType, { display_order: displayOrder });
+                          }
+                        }}
+                        style={{ width: "5rem" }}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        defaultValue={expenseType.code}
+                        onBlur={(e) => {
+                          const code = e.target.value.trim();
+                          if (code && code !== expenseType.code) {
+                            updateExpenseType(expenseType, { code });
+                          }
+                        }}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        defaultValue={expenseType.name}
+                        onBlur={(e) => {
+                          const name = e.target.value.trim();
+                          if (name && name !== expenseType.name) {
+                            updateExpenseType(expenseType, { name });
+                          }
+                        }}
+                      />
+                    </td>
                     <td>
                       <button
                         type="button"
@@ -182,18 +241,36 @@ export function FieldConfigPage() {
       ) : (
         <>
           <div className="card">
-            <h2>按种类配置字段</h2>
-            <div className="form-group">
-              <label>Expense 种类</label>
-              <select value={selectedTypeId} onChange={(e) => setSelectedTypeId(e.target.value)}>
-                {expenseTypes.map((expenseType) => (
-                  <option key={expenseType.id} value={expenseType.id}>
-                    {expenseType.name}
-                  </option>
-                ))}
-              </select>
+            <h2>字段配置</h2>
+            <div className="tab-row" style={{ marginBottom: "1rem" }}>
+              <button
+                type="button"
+                className={`btn ${fieldScope === "global" ? "btn-primary" : "btn-secondary"}`}
+                onClick={() => setFieldScope("global")}
+              >
+                统一字段
+              </button>
+              <button
+                type="button"
+                className={`btn ${fieldScope === "typed" ? "btn-primary" : "btn-secondary"}`}
+                onClick={() => setFieldScope("typed")}
+              >
+                按种类字段
+              </button>
             </div>
-            {!selectedTypeId ? (
+            {fieldScope === "typed" && (
+              <div className="form-group">
+                <label>Expense 种类</label>
+                <select value={selectedTypeId} onChange={(e) => setSelectedTypeId(e.target.value)}>
+                  {expenseTypes.map((expenseType) => (
+                    <option key={expenseType.id} value={expenseType.id}>
+                      {expenseType.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {fieldScope === "typed" && !selectedTypeId ? (
               <p>请先到 “Expense 种类” tab 新建至少一个种类。</p>
             ) : (
               <>
@@ -226,6 +303,18 @@ export function FieldConfigPage() {
                       必填
                     </label>
                   </div>
+                  {fieldScope === "global" && (
+                    <div className="form-group">
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={showInLists}
+                          onChange={(e) => setShowInLists(e.target.checked)}
+                        />
+                        展示在“我的报销 / 全部报销”
+                      </label>
+                    </div>
+                  )}
                   <button type="submit" className="btn btn-primary">
                     添加字段
                   </button>
@@ -250,6 +339,7 @@ export function FieldConfigPage() {
                   <th>标签</th>
                   <th>类型</th>
                   <th>必填</th>
+                  {fieldScope === "global" && <th>列表展示</th>}
                   <th>操作</th>
                 </tr>
               </thead>
@@ -261,6 +351,7 @@ export function FieldConfigPage() {
                     <td>{field.label}</td>
                     <td>{field.field_type}</td>
                     <td>{field.required ? "是" : "否"}</td>
+                    {fieldScope === "global" && <td>{field.show_in_lists ? "显示" : "隐藏"}</td>}
                     <td>
                       <button type="button" className="btn btn-secondary" onClick={() => deleteField(field)}>
                         删除

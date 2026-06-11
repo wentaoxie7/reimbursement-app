@@ -1,12 +1,19 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, formatExpenseStatus, type Expense } from "../api/client";
+import { api, formatExpenseStatus, type Expense, type FieldDef, type FieldSchema } from "../api/client";
 
 export function AllExpensesPage() {
   const [items, setItems] = useState<Expense[]>([]);
+  const [listFields, setListFields] = useState<FieldDef[]>([]);
 
   useEffect(() => {
-    api.get<Expense[]>("/user/all-expenses").then(({ data }) => setItems(data));
+    Promise.all([
+      api.get<Expense[]>("/user/all-expenses"),
+      api.get<FieldSchema>("/user/field-schema"),
+    ]).then(([expensesRes, schemaRes]) => {
+      setItems(expensesRes.data);
+      setListFields(schemaRes.data.list_fields);
+    });
   }, []);
 
   return (
@@ -19,8 +26,9 @@ export function AllExpensesPage() {
             <th>ID</th>
             <th>状态</th>
             <th>最新记录</th>
-            <th>金额</th>
-            <th>类别</th>
+            {listFields.map((field) => (
+              <th key={field.field_key}>{field.label}</th>
+            ))}
             <th></th>
           </tr>
         </thead>
@@ -37,8 +45,9 @@ export function AllExpensesPage() {
                   ? `${expense.last_action_actor_name ?? "审核人"}: ${expense.last_action_comment}`
                   : "-"}
               </td>
-              <td>{String(expense.field_values.amount ?? "-")}</td>
-              <td>{String(expense.field_values.category ?? "-")}</td>
+              {listFields.map((field) => (
+                <td key={field.field_key}>{String(expense.field_values[field.field_key] ?? "-")}</td>
+              ))}
               <td>
                 <Link to={`/expenses/${expense.id}`} state={{ returnTo: "/all-expenses" }}>
                   详情
